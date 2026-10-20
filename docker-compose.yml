@@ -1,0 +1,17 @@
+# Run the Filament Catalog on the server.
+#
+# First install:   docker compose up -d
+# Update later:    git pull && docker compose pull && docker compose up -d --force-recreate
+#
+# `image` pulls the prebuilt image from GHCR (what the server does).
+# `build: .` lets you build locally instead with: docker compose up -d --build
+services:
+  filament-catalog:
+    image: ghcr.io/savethechicken/filament-catalog:latest
+    build: .
+    container_name: filament-catalog
+    restart: unless-stopped
+    ports:
+      - "8077:8077"
+    volumes:
+      - ./data:/data        # your filament.db lives here, outside the image

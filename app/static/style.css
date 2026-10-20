@@ -1,0 +1,151 @@
+:root {
+  --bg: #0f1216;
+  --panel: #171c23;
+  --panel-2: #1f2630;
+  --line: #2a323d;
+  --text: #e7edf3;
+  --muted: #9aa7b4;
+  --accent: #4f9dff;
+  --good: #46c17a;
+  --caution: #e8b23a;
+  --warn: #e8b23a;
+  --danger: #e5564b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 24px clamp(12px, 4vw, 48px);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+h1 { font-size: 1.5rem; margin: 0; }
+
+button {
+  font: inherit;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
+button.link { background: none; border: none; color: var(--muted); padding: 4px 6px; }
+button.link:hover { color: var(--text); }
+button.link.danger:hover { color: var(--danger); }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.controls input[type="search"] {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+input, select, textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.checkbox { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.count { margin-left: auto; color: var(--muted); font-size: .9rem; }
+
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  text-align: left;
+  font-size: .78rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:hover { background: var(--panel); }
+tbody tr.caution { box-shadow: inset 3px 0 0 var(--caution); }
+tbody tr.low { box-shadow: inset 3px 0 0 var(--danger); }
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: .82rem;
+}
+
+.bar {
+  position: relative;
+  width: 120px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--good);
+}
+.bar.good > span { background: var(--good); }
+.bar.caution > span { background: var(--caution); }
+.bar.low > span { background: var(--danger); }
+.bar .bar-label {
+  position: relative;
+  display: block;
+  text-align: center;
+  font-size: .75rem;
+  line-height: 18px;
+  color: #fff;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
+}
+.grams { color: var(--muted); font-size: .78rem; }
+.temps { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+.notes { color: var(--muted); font-size: .85rem; max-width: 220px; }
+.row-actions { white-space: nowrap; text-align: right; }
+
+.empty { color: var(--muted); text-align: center; padding: 32px; }
+
+/* Dialog */
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 20px;
+  width: min(560px, 92vw);
+}
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { margin: 0 0 14px; font-size: 1.15rem; }
+dialog label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 12px; }
+dialog label input, dialog label select, dialog label textarea { width: 100%; margin-top: 4px; color: var(--text); }
+.field-row { display: flex; gap: 12px; }
+.field-row label { flex: 1; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .field-row { flex-direction: column; gap: 0; }
+  .temps, thead th:nth-child(6), td:nth-child(6) { display: none; }
+}

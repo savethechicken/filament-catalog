@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+filament.db
+data/
+.git/
+.github/
+*.md
+run.ps1

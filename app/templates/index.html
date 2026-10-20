@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Filament Catalog</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🧵 Filament Catalog</h1>
+    <button id="add-btn" class="primary">+ Add spool</button>
+  </header>
+
+  <section class="controls">
+    <input type="search" id="search" placeholder="Search color, notes, anything…" />
+    <select id="filter-material"><option value="">All materials</option></select>
+    <select id="filter-brand"><option value="">All brands</option></select>
+    <select id="filter-finish"><option value="">All finishes</option></select>
+    <label class="checkbox">
+      <input type="checkbox" id="filter-low" /> Low stock only
+    </label>
+    <span id="count" class="count"></span>
+  </section>
+
+  <table id="grid">
+    <thead>
+      <tr>
+        <th>Material</th>
+        <th>Color</th>
+        <th>Finish</th>
+        <th>Brand</th>
+        <th>Remaining</th>
+        <th>Temps</th>
+        <th>Notes</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="empty" class="empty" hidden>No spools match. Try clearing the filters.</p>
+
+  <!-- Add / Edit dialog -->
+  <dialog id="editor">
+    <form id="editor-form" method="dialog">
+      <h2 id="editor-title">Add spool</h2>
+      <input type="hidden" id="f-id" />
+
+      <div class="field-row">
+        <label>Material
+          <input id="f-material" list="material-list" required placeholder="PLA" />
+          <datalist id="material-list"></datalist>
+        </label>
+        <label>Color
+          <input id="f-color" required placeholder="Forest Green" />
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label>Finish
+          <input id="f-finish" list="finish-list" placeholder="Matte, Silk…" />
+          <datalist id="finish-list"></datalist>
+        </label>
+        <label>Brand
+          <input id="f-brand" list="brand-list" placeholder="Inland" />
+          <datalist id="brand-list"></datalist>
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label>Full spool weight (g)
+          <input id="f-weight" type="number" min="1" value="1000" />
+        </label>
+        <label>Amount left
+          <select id="f-fraction">
+            <option value="">— set grams below —</option>
+            <option value="1">Full</option>
+            <option value="0.75">¾</option>
+            <option value="0.5">½</option>
+            <option value="0.333">⅓</option>
+            <option value="0.25">¼</option>
+            <option value="0.125">⅛</option>
+            <option value="0">Empty</option>
+          </select>
+        </label>
+        <label>Grams remaining
+          <input id="f-remaining" type="number" min="0" value="1000" />
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label>Nozzle temp (°C)
+          <input id="f-nozzle" type="number" placeholder="210" />
+        </label>
+        <label>Bed temp (°C)
+          <input id="f-bed" type="number" placeholder="60" />
+        </label>
+      </div>
+
+      <label>Notes
+        <textarea id="f-notes" rows="2" placeholder="Dried, prints great at 0.2mm…"></textarea>
+      </label>
+
+      <div class="dialog-actions">
+        <button type="button" id="cancel-btn">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
