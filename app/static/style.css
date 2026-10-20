@@ -147,5 +147,61 @@ dialog label input, dialog label select, dialog label textarea { width: 100%; ma
 
 @media (max-width: 640px) {
   .field-row { flex-direction: column; gap: 0; }
-  .temps, thead th:nth-child(6), td:nth-child(6) { display: none; }
+
+  /* Turn the wide table into a stack of cards so phones never scroll sideways. */
+  body { padding: 16px; }
+  header { flex-wrap: wrap; }
+  .controls input[type="search"] { flex-basis: 100%; }
+  .count { margin-left: 0; }
+
+  table, thead, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }                 /* column headers move onto each row */
+
+  tbody tr {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 6px 12px;
+    margin-bottom: 12px;
+  }
+  tbody tr:hover { background: var(--panel); }
+
+  tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border: none;
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td:last-child { border-bottom: none; }
+
+  /* Label each value with its column name. */
+  tbody td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    flex: 0 0 auto;
+  }
+
+  /* Hide empty finish/brand/notes/temps rows so cards stay compact. */
+  tbody td.empty-cell { display: none; }
+  tbody td.temps { white-space: normal; }
+
+  /* Remaining: stack the label above a full-width bar with grams beside it. */
+  tbody td[data-label="Remaining"] {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  tbody td[data-label="Remaining"] .bar { flex: 1; width: auto; min-width: 140px; }
+  tbody td[data-label="Remaining"] .grams { white-space: nowrap; }
+  .notes { max-width: none; text-align: right; }
+
+  /* Edit/Delete: full-width tap targets, no label. */
+  .row-actions { justify-content: flex-end; gap: 16px; padding-top: 10px; }
+  .row-actions::before { content: none; }
+  .row-actions .link { padding: 6px 4px; }
 }

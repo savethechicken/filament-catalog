@@ -70,19 +70,19 @@ function renderRows(rows) {
       .join(" / ");
 
     tr.innerHTML = `
-      <td><span class="pill">${escapeHtml(r.material)}</span></td>
-      <td>${escapeHtml(r.color)}</td>
-      <td>${r.finish ? escapeHtml(r.finish) : "<span class='grams'>—</span>"}</td>
-      <td>${r.brand ? escapeHtml(r.brand) : "<span class='grams'>—</span>"}</td>
-      <td>
+      <td data-label="Material"><span class="pill">${escapeHtml(r.material)}</span></td>
+      <td data-label="Color">${escapeHtml(r.color)}</td>
+      <td data-label="Finish" class="${r.finish ? "" : "empty-cell"}">${r.finish ? escapeHtml(r.finish) : "<span class='grams'>—</span>"}</td>
+      <td data-label="Brand" class="${r.brand ? "" : "empty-cell"}">${r.brand ? escapeHtml(r.brand) : "<span class='grams'>—</span>"}</td>
+      <td data-label="Remaining">
         <div class="bar ${r.level}">
           <span style="width:${r.remaining_pct}%"></span>
           <span class="bar-label">${r.remaining_pct}%</span>
         </div>
         <div class="grams">${r.remaining_g} / ${r.spool_weight_g} g</div>
       </td>
-      <td class="temps">${temps || "—"}</td>
-      <td class="notes">${r.notes ? escapeHtml(r.notes) : ""}</td>
+      <td class="temps ${temps ? "" : "empty-cell"}" data-label="Temps">${temps || "—"}</td>
+      <td class="notes ${r.notes ? "" : "empty-cell"}" data-label="Notes">${r.notes ? escapeHtml(r.notes) : ""}</td>
       <td class="row-actions">
         <button class="link" data-edit="${r.id}">Edit</button>
         <button class="link danger" data-del="${r.id}">Delete</button>
