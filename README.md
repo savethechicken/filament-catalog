@@ -14,12 +14,13 @@ below **25%** as low stock, and lets you search and filter.
 
 ## Run it on your PC (to try it out)
 
+Clone the repo, then from the project folder:
+
 ```powershell
-cd C:\Users\KD\filament-catalog
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python -m app.seed          # loads your 15 spools (only on an empty database)
+python -m app.seed          # loads the starter catalog (only on an empty database)
 uvicorn app.main:app --reload --port 8077
 ```
 
