@@ -9,7 +9,10 @@
 <body>
   <header>
     <h1>🧵 Filament Catalog</h1>
-    <button id="add-btn" class="primary">+ Add spool</button>
+    <div class="header-actions">
+      <button id="scan-btn">📷 Scan</button>
+      <button id="add-btn" class="primary">+ Add spool</button>
+    </div>
   </header>
 
   <section class="controls">
@@ -45,6 +48,13 @@
     <form id="editor-form" method="dialog">
       <h2 id="editor-title">Add spool</h2>
       <input type="hidden" id="f-id" />
+
+      <label>Barcode
+        <div class="barcode-field">
+          <input id="f-barcode" placeholder="scan the spool, or type it" />
+          <button type="button" id="dialog-scan-btn" title="Scan barcode">📷 Scan</button>
+        </div>
+      </label>
 
       <div class="field-row">
         <label>Material
@@ -108,6 +118,12 @@
     </form>
   </dialog>
 
+  <!-- Hidden camera input: taking a photo works over plain http (no HTTPS needed). -->
+  <input type="file" id="scan-input" accept="image/*" capture="environment" hidden />
+  <!-- Scratch container the barcode decoder needs; never shown. -->
+  <div id="qr-scratch" style="display:none"></div>
+
+  <script src="/static/html5-qrcode.min.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

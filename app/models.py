@@ -23,6 +23,7 @@ class FilamentBase(SQLModel):
     color: str                                 # "Forest Green", "Silver" ...
     finish: Optional[str] = Field(default=None, index=True)  # Silk, Matte, Color Shift ...
     brand: Optional[str] = Field(default=None, index=True)   # Inland, Cookie CAD ...
+    barcode: Optional[str] = Field(default=None, index=True)  # UPC/EAN off the spool label
 
     spool_weight_g: int = 1000                 # net weight of a full spool
     remaining_g: int = 1000                    # grams left on the spool right now
@@ -52,6 +53,7 @@ class FilamentUpdate(SQLModel):
     color: Optional[str] = None
     finish: Optional[str] = None
     brand: Optional[str] = None
+    barcode: Optional[str] = None
     spool_weight_g: Optional[int] = None
     remaining_g: Optional[int] = None
     nozzle_temp: Optional[int] = None

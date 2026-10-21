@@ -123,6 +123,34 @@ def list_filaments(
     return results
 
 
+@app.get("/api/barcode/{code}")
+def lookup_barcode(code: str, session: Session = Depends(get_session)):
+    """Return the product details last saved for a scanned barcode.
+
+    This is the "remember this spool" lookup: the first time you scan a code you
+    fill the details in by hand; every later scan of the same code finds the most
+    recent matching spool and hands back its product-level fields to pre-fill a
+    new entry. The per-spool amount (remaining_g) is deliberately not returned.
+    """
+    row = session.exec(
+        select(Filament)
+        .where(Filament.barcode == code)
+        .order_by(Filament.updated_at.desc())
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="No saved product for that barcode")
+    return {
+        "barcode": row.barcode,
+        "material": row.material,
+        "color": row.color,
+        "finish": row.finish,
+        "brand": row.brand,
+        "spool_weight_g": row.spool_weight_g,
+        "nozzle_temp": row.nozzle_temp,
+        "bed_temp": row.bed_temp,
+    }
+
+
 @app.post("/api/filaments")
 def create_filament(payload: FilamentCreate, session: Session = Depends(get_session)):
     """Add a new spool."""

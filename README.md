@@ -8,9 +8,24 @@ step, no external database — the whole catalog lives in one `filament.db` file
 
 ## What it tracks
 
-Per spool: material, color, finish, brand, full-spool weight, grams remaining,
-nozzle/bed temps, and notes. The list shows a fill bar, flags anything at or
-below **25%** as low stock, and lets you search and filter.
+Per spool: material, color, finish, brand, barcode, full-spool weight, grams
+remaining, nozzle/bed temps, and notes. The list shows a fill bar, flags
+anything at or below **25%** as low stock, and lets you search and filter.
+
+## Scan a barcode
+
+Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
+the browser (no internet or app needed — the decoder is bundled). Then it does a
+"remember this spool" lookup:
+
+- **Seen this barcode before?** Material, color, brand, weight and temps fill in
+  automatically — just set how full this spool is and save.
+- **New barcode?** Fill the details in once; every future scan of that code
+  auto-fills from what you entered.
+
+It gets smarter the more you scan, so rebuying the same Inland spools becomes a
+near one-tap add. Taking the photo works over plain `http`, so no HTTPS setup is
+needed on your home network.
 
 ## Run it on your PC (to try it out)
 

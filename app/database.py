@@ -23,8 +23,22 @@ engine = create_engine(SQLITE_URL, echo=False, connect_args={"check_same_thread"
 
 
 def init_db() -> None:
-    """Create the table(s) if the database file is new."""
+    """Create the table(s) if the database file is new, then apply small migrations.
+
+    create_all() makes missing tables but never alters an existing one, so when
+    we add a column to the model we also add it to an older database here.
+    """
     SQLModel.metadata.create_all(engine)
+    _ensure_column("filament", "barcode", "VARCHAR")
+
+
+def _ensure_column(table: str, column: str, decl: str) -> None:
+    """Add `column` to `table` if it isn't there yet (SQLite ALTER TABLE)."""
+    with engine.connect() as conn:
+        existing = [row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")]
+        if column not in existing:
+            conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+            conn.commit()
 
 
 def get_session():

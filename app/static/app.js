@@ -106,6 +106,7 @@ function openEditor(spool) {
   const isEdit = Boolean(spool);
   $("editor-title").textContent = isEdit ? "Edit spool" : "Add spool";
   $("f-id").value = isEdit ? spool.id : "";
+  $("f-barcode").value = isEdit ? spool.barcode || "" : "";
   $("f-material").value = isEdit ? spool.material : "";
   $("f-color").value = isEdit ? spool.color : "";
   $("f-finish").value = isEdit ? spool.finish || "" : "";
@@ -143,6 +144,7 @@ $("editor-form").addEventListener("submit", async (e) => {
     color: $("f-color").value.trim(),
     finish: $("f-finish").value.trim() || null,
     brand: $("f-brand").value.trim() || null,
+    barcode: $("f-barcode").value.trim() || null,
     spool_weight_g: Number($("f-weight").value) || 0,
     remaining_g: Number($("f-remaining").value) || 0,
     nozzle_temp: $("f-nozzle").value ? Number($("f-nozzle").value) : null,
@@ -173,6 +175,93 @@ async function removeSpool(id) {
   await loadMeta();
   await loadRows();
 }
+
+// ---- Barcode scanning ----------------------------------------------------
+// Take a photo of the spool's barcode, decode it in the browser (html5-qrcode),
+// then ask the server if we've saved that product before. Works over plain
+// http — the file input opens the camera without needing HTTPS.
+
+const scanInput = $("scan-input");
+let _onScan = null; // callback waiting for the next decoded photo
+
+// Decode a photo File into a barcode string. Throws if none is found.
+async function decodeFile(file) {
+  const scanner = new Html5Qrcode("qr-scratch", { verbose: false });
+  try {
+    return await scanner.scanFile(file, false);
+  } finally {
+    try { await scanner.clear(); } catch (e) { /* nothing to clean up */ }
+  }
+}
+
+// Opens the camera and resolves with the decoded code, "" if unreadable, or
+// null if the user backed out without taking a photo.
+function scanBarcode() {
+  return new Promise((resolve) => {
+    _onScan = resolve;
+    scanInput.click();
+  });
+}
+
+scanInput.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ""; // let the same photo be re-picked later
+  const resolve = _onScan;
+  _onScan = null;
+  if (!resolve) return;
+  if (!file) return resolve(null);
+  try {
+    resolve(await decodeFile(file));
+  } catch (err) {
+    resolve(""); // no barcode found in the image
+  }
+});
+
+async function lookupBarcode(code) {
+  const res = await fetch(`/api/barcode/${encodeURIComponent(code)}`);
+  return res.ok ? res.json() : null; // null = barcode we've never saved
+}
+
+function applyProduct(p) {
+  $("f-material").value = p.material || "";
+  $("f-color").value = p.color || "";
+  $("f-finish").value = p.finish || "";
+  $("f-brand").value = p.brand || "";
+  $("f-weight").value = p.spool_weight_g != null ? p.spool_weight_g : 1000;
+  $("f-nozzle").value = p.nozzle_temp != null ? p.nozzle_temp : "";
+  $("f-bed").value = p.bed_temp != null ? p.bed_temp : "";
+}
+
+const UNREADABLE =
+  "Couldn't read a barcode in that photo. Try again — fill the frame, hold steady, good light — or type the number in.";
+
+// Header "Scan": scan straight into a new spool entry.
+$("scan-btn").addEventListener("click", async () => {
+  const code = await scanBarcode();
+  if (code === null) return; // cancelled
+  if (code === "") return alert(UNREADABLE);
+
+  const product = await lookupBarcode(code);
+  openEditor(null);            // fresh spool (new physical roll)
+  $("f-barcode").value = code;
+  if (product) {
+    applyProduct(product);     // known product -> fields pre-filled
+    $("f-remaining").focus();  // you just set how full this one is
+  } else {
+    $("f-material").focus();   // new product -> fill details once
+  }
+});
+
+// Dialog "Scan": attach/look up a barcode while the form is open.
+$("dialog-scan-btn").addEventListener("click", async () => {
+  const code = await scanBarcode();
+  if (code === null) return;
+  if (code === "") return alert(UNREADABLE);
+  $("f-barcode").value = code;
+  const product = await lookupBarcode(code);
+  // Only fill blanks, so we never clobber something you've already typed.
+  if (product && !$("f-material").value.trim()) applyProduct(product);
+});
 
 // ---- Wiring --------------------------------------------------------------
 

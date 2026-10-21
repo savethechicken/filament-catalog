@@ -31,6 +31,7 @@ header {
 }
 
 h1 { font-size: 1.5rem; margin: 0; }
+.header-actions { display: flex; gap: 10px; }
 
 button {
   font: inherit;
@@ -143,6 +144,9 @@ dialog label { display: block; font-size: .85rem; color: var(--muted); margin-bo
 dialog label input, dialog label select, dialog label textarea { width: 100%; margin-top: 4px; color: var(--text); }
 .field-row { display: flex; gap: 12px; }
 .field-row label { flex: 1; }
+.barcode-field { display: flex; gap: 8px; margin-top: 4px; }
+.barcode-field input { flex: 1; }
+.barcode-field button { white-space: nowrap; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 
 @media (max-width: 640px) {
