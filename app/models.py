@@ -59,3 +59,24 @@ class FilamentUpdate(SQLModel):
     nozzle_temp: Optional[int] = None
     bed_temp: Optional[int] = None
     notes: Optional[str] = None
+
+
+class Product(SQLModel, table=True):
+    """The reusable facts behind a barcode, kept separately from spools.
+
+    A Product is upserted whenever you save a spool that has a barcode, and it is
+    never removed when a spool is deleted. So after a roll is used up and deleted,
+    scanning its barcode again still re-imports all the details for the refill.
+    This table is also the natural seam for a future OpenSpool / NFC integration.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    barcode: str = Field(index=True, unique=True)
+    material: str
+    color: str
+    finish: Optional[str] = None
+    brand: Optional[str] = None
+    spool_weight_g: int = 1000
+    nozzle_temp: Optional[int] = None
+    bed_temp: Optional[int] = None
+    updated_at: datetime = Field(default_factory=_now)

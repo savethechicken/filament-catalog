@@ -27,6 +27,12 @@ It gets smarter the more you scan, so rebuying the same Inland spools becomes a
 near one-tap add. Taking the photo works over plain `http`, so no HTTPS setup is
 needed on your home network.
 
+**The barcode memory outlives the spool.** Product details (material, color,
+brand, weight, temps) are saved in a separate `products` table, so when a roll
+is used up and you delete it from the list, the barcode is *not* forgotten —
+scan it on your next refill and everything re-imports. `GET /api/products` lists
+everything remembered (a natural hook for a future OpenSpool / NFC tie-in).
+
 ## Run it on your PC (to try it out)
 
 Clone the repo, then from the project folder:

@@ -7,6 +7,8 @@ Routes:
   PATCH/api/filaments/{id}    -> edit a spool
   DELETE /api/filaments/{id}  -> remove a spool
   GET  /api/meta              -> dropdown values + the low-stock threshold
+  GET  /api/barcode/{code}    -> remembered product details for a scanned barcode
+  GET  /api/products          -> every remembered product (barcode -> details)
 
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
@@ -22,8 +24,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 from sqlmodel import Session, select
 
-from .database import init_db, get_session
-from .models import Filament, FilamentCreate, FilamentUpdate
+from .database import init_db, get_session, engine
+from .models import Filament, FilamentCreate, FilamentUpdate, Product
 
 # Fill-level thresholds (percent of a full spool):
 #   > CAUTION_PCT          -> "good"    (green)
@@ -42,8 +44,43 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 @app.on_event("startup")
 def on_startup() -> None:
-    """Make sure the database table exists before the first request."""
+    """Make sure the tables exist, then remember products for any barcoded spools.
+
+    The backfill matters when upgrading a database that already had barcoded
+    spools before the products table existed: it seeds a Product for each so the
+    barcode memory is complete from the first run.
+    """
     init_db()
+    with Session(engine) as session:
+        known = {p.barcode for p in session.exec(select(Product)).all()}
+        spools = session.exec(
+            select(Filament)
+            .where(Filament.barcode.is_not(None))
+            .order_by(Filament.updated_at.desc())
+        ).all()
+        for f in spools:
+            if f.barcode and f.barcode not in known:
+                upsert_product(session, f)
+                known.add(f.barcode)
+
+
+def upsert_product(session: Session, f: Filament) -> None:
+    """Save (or refresh) the product behind a spool's barcode. No-op without one."""
+    if not f.barcode:
+        return
+    prod = session.exec(select(Product).where(Product.barcode == f.barcode)).first()
+    if prod is None:
+        prod = Product(barcode=f.barcode, material=f.material, color=f.color)
+    prod.material = f.material
+    prod.color = f.color
+    prod.finish = f.finish
+    prod.brand = f.brand
+    prod.spool_weight_g = f.spool_weight_g
+    prod.nozzle_temp = f.nozzle_temp
+    prod.bed_temp = f.bed_temp
+    prod.updated_at = datetime.now(timezone.utc)
+    session.add(prod)
+    session.commit()
 
 
 def serialize(f: Filament) -> dict:
@@ -127,28 +164,31 @@ def list_filaments(
 def lookup_barcode(code: str, session: Session = Depends(get_session)):
     """Return the product details last saved for a scanned barcode.
 
-    This is the "remember this spool" lookup: the first time you scan a code you
-    fill the details in by hand; every later scan of the same code finds the most
-    recent matching spool and hands back its product-level fields to pre-fill a
-    new entry. The per-spool amount (remaining_g) is deliberately not returned.
+    This is the "remember this spool" lookup. It reads the persistent products
+    table, not the spool list, so it keeps working even after every spool of a
+    product has been used up and deleted. The per-spool amount is not returned.
     """
-    row = session.exec(
-        select(Filament)
-        .where(Filament.barcode == code)
-        .order_by(Filament.updated_at.desc())
-    ).first()
-    if not row:
+    prod = session.exec(select(Product).where(Product.barcode == code)).first()
+    if not prod:
         raise HTTPException(status_code=404, detail="No saved product for that barcode")
     return {
-        "barcode": row.barcode,
-        "material": row.material,
-        "color": row.color,
-        "finish": row.finish,
-        "brand": row.brand,
-        "spool_weight_g": row.spool_weight_g,
-        "nozzle_temp": row.nozzle_temp,
-        "bed_temp": row.bed_temp,
+        "barcode": prod.barcode,
+        "material": prod.material,
+        "color": prod.color,
+        "finish": prod.finish,
+        "brand": prod.brand,
+        "spool_weight_g": prod.spool_weight_g,
+        "nozzle_temp": prod.nozzle_temp,
+        "bed_temp": prod.bed_temp,
     }
+
+
+@app.get("/api/products")
+def list_products(session: Session = Depends(get_session)):
+    """Every remembered product (barcode -> details). Handy for a future
+    management view or an OpenSpool / NFC integration."""
+    rows = session.exec(select(Product).order_by(Product.brand, Product.material, Product.color)).all()
+    return [r.model_dump() for r in rows]
 
 
 @app.post("/api/filaments")
@@ -158,7 +198,9 @@ def create_filament(payload: FilamentCreate, session: Session = Depends(get_sess
     session.add(f)
     session.commit()
     session.refresh(f)
-    return serialize(f)
+    result = serialize(f)
+    upsert_product(session, f)   # remember this product behind its barcode
+    return result
 
 
 @app.patch("/api/filaments/{filament_id}")
@@ -178,12 +220,18 @@ def update_filament(
     session.add(f)
     session.commit()
     session.refresh(f)
-    return serialize(f)
+    result = serialize(f)
+    upsert_product(session, f)   # keep the remembered product in step with edits
+    return result
 
 
 @app.delete("/api/filaments/{filament_id}")
 def delete_filament(filament_id: int, session: Session = Depends(get_session)):
-    """Remove a spool from the catalog."""
+    """Remove a spool from the catalog.
+
+    The remembered Product is intentionally left in place, so scanning the
+    barcode after a refill still re-imports everything.
+    """
     f = session.get(Filament, filament_id)
     if not f:
         raise HTTPException(status_code=404, detail="Spool not found")
