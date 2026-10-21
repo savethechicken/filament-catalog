@@ -35,6 +35,27 @@ from .models import Filament, FilamentCreate, FilamentUpdate, Product
 LOW_STOCK_PCT = 25
 CAUTION_PCT = 50
 
+# Base material families, checked most-specific first so PETG beats PET and each
+# variant maps to its base (PLA+ -> PLA, HSPETG -> PETG, PLA Pro -> PLA).
+_FAMILY_BASES = [
+    "PETG", "PCTG", "PET",
+    "PLA",
+    "ABS", "ASA",
+    "TPU", "TPE",
+    "PVA", "HIPS",
+    "NYLON", "PA",
+    "PC", "PP",
+]
+
+
+def material_family(material: str) -> str:
+    """Map a material name to its base family; fall back to the name itself."""
+    norm = "".join(ch for ch in (material or "").upper() if ch.isalnum())
+    for base in _FAMILY_BASES:
+        if base in norm:
+            return base
+    return material
+
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Filament Catalog")
@@ -111,10 +132,12 @@ def meta(session: Session = Depends(get_session)):
     """Distinct materials/brands/finishes (for filter dropdowns) + settings."""
     rows = session.exec(select(Filament)).all()
     materials = sorted({r.material for r in rows if r.material})
+    families = sorted({material_family(r.material) for r in rows if r.material})
     brands = sorted({r.brand for r in rows if r.brand})
     finishes = sorted({r.finish for r in rows if r.finish})
     return {
         "materials": materials,
+        "families": families,
         "brands": brands,
         "finishes": finishes,
         "low_stock_pct": LOW_STOCK_PCT,
@@ -125,6 +148,7 @@ def meta(session: Session = Depends(get_session)):
 def list_filaments(
     q: Optional[str] = None,
     material: Optional[str] = None,
+    family: Optional[str] = None,
     brand: Optional[str] = None,
     finish: Optional[str] = None,
     low_stock: bool = Query(False),
@@ -141,6 +165,11 @@ def list_filaments(
     rows = session.exec(statement).all()
 
     results = [serialize(r) for r in rows]
+
+    # Material family (PLA covers PLA/PLA+/PLA Pro/HSPLA+, etc.) — derived, so
+    # it's filtered here rather than in the SQL query.
+    if family:
+        results = [r for r in results if material_family(r["material"]) == family]
 
     # Free-text search across the human-readable fields.
     if q:

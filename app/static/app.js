@@ -6,7 +6,7 @@ const $ = (id) => document.getElementById(id);
 // Current filter state, read from the controls each time we load.
 const controls = {
   search: $("search"),
-  material: $("filter-material"),
+  family: $("filter-family"),
   brand: $("filter-brand"),
   finish: $("filter-finish"),
   low: $("filter-low"),
@@ -19,7 +19,7 @@ let lowStockPct = 25; // overwritten by /api/meta
 async function loadMeta() {
   const meta = await fetch("/api/meta").then((r) => r.json());
   lowStockPct = meta.low_stock_pct;
-  fillOptions(controls.material, "All materials", meta.materials);
+  fillOptions(controls.family, "All materials", meta.families);
   fillOptions(controls.brand, "All brands", meta.brands);
   fillOptions(controls.finish, "All finishes", meta.finishes);
   fillDatalist("material-list", meta.materials);
@@ -46,7 +46,7 @@ function fillDatalist(id, values) {
 async function loadRows() {
   const params = new URLSearchParams();
   if (controls.search.value.trim()) params.set("q", controls.search.value.trim());
-  if (controls.material.value) params.set("material", controls.material.value);
+  if (controls.family.value) params.set("family", controls.family.value);
   if (controls.brand.value) params.set("brand", controls.brand.value);
   if (controls.finish.value) params.set("finish", controls.finish.value);
   if (controls.low.checked) params.set("low_stock", "true");
@@ -271,7 +271,7 @@ function escapeHtml(s) {
   );
 }
 
-[controls.search, controls.material, controls.brand, controls.finish, controls.low].forEach((el) =>
+[controls.search, controls.family, controls.brand, controls.finish, controls.low].forEach((el) =>
   el.addEventListener("input", loadRows)
 );
 

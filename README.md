@@ -12,6 +12,11 @@ Per spool: material, color, finish, brand, barcode, full-spool weight, grams
 remaining, nozzle/bed temps, and notes. The list shows a fill bar, flags
 anything at or below **25%** as low stock, and lets you search and filter.
 
+The material filter groups by **family**: picking **PLA** shows every variant
+(PLA, PLA+, PLA Pro, HSPLA+); **PETG** covers PETG, PETG+, HSPETG; and so on.
+Families are derived automatically from the material name (see `material_family`
+in `app/main.py`), so new variants slot into the right group with no setup.
+
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
