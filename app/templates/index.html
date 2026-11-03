@@ -62,6 +62,7 @@
             <option value="numakers">Numakers</option>
           </select>
           <input id="f-sku" placeholder="supplier SKU, e.g. PLMT11KPAA" />
+          <button type="button" id="sku-scan-btn" title="Scan the maker's QR code">📷</button>
           <button type="button" id="sku-lookup-btn" title="Fill from the maker's catalog">Look up</button>
         </div>
       </label>
@@ -133,6 +134,7 @@
   <!-- Scratch container the barcode decoder needs; never shown. -->
   <div id="qr-scratch" style="display:none"></div>
 
+  <script src="/static/jsqr.min.js"></script>
   <script src="/static/html5-qrcode.min.js"></script>
   <script src="/static/app.js"></script>
 </body>

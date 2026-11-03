@@ -184,13 +184,47 @@ async function removeSpool(id) {
 const scanInput = $("scan-input");
 let _onScan = null; // callback waiting for the next decoded photo
 
-// Decode a photo File into a barcode string. Throws if none is found.
+// Decode a photo File into a code string. Throws if nothing is found.
+// QR first (jsQR — reliable on still photos, used by Numakers' SKU QR), then
+// fall back to html5-qrcode for 1D barcodes (UPC/EAN on spool labels).
 async function decodeFile(file) {
+  const qr = await decodeQR(file);
+  if (qr) return qr;
+
   const scanner = new Html5Qrcode("qr-scratch", { verbose: false });
   try {
     return await scanner.scanFile(file, false);
   } finally {
     try { await scanner.clear(); } catch (e) { /* nothing to clean up */ }
+  }
+}
+
+// Try to read a QR code from a photo using jsQR. Returns the text, or null.
+async function decodeQR(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = url;
+    });
+    // Scale big phone photos down so jsQR stays fast.
+    const maxDim = 1600;
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    const data = canvas.getContext("2d").getImageData(0, 0, w, h);
+    const result = jsQR(data.data, w, h, { inversionAttempts: "attemptBoth" });
+    return result ? result.data : null;
+  } catch (e) {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -252,8 +286,8 @@ $("scan-btn").addEventListener("click", async () => {
   }
 });
 
-// "Look up" by maker code: fill the form from the manufacturer's catalog.
-$("sku-lookup-btn").addEventListener("click", async () => {
+// Fill the form from the manufacturer's catalog using the code in the SKU field.
+async function lookupSku() {
   const brand = $("f-sku-brand").value;
   const code = $("f-sku").value.trim();
   if (!code) return;
@@ -274,6 +308,18 @@ $("sku-lookup-btn").addEventListener("click", async () => {
     btn.disabled = false;
     btn.textContent = "Look up";
   }
+}
+
+// "Look up" button: look up whatever SKU is typed in.
+$("sku-lookup-btn").addEventListener("click", lookupSku);
+
+// Maker-code "Scan": read the brand's QR (which just holds the SKU), then look it up.
+$("sku-scan-btn").addEventListener("click", async () => {
+  const code = await scanBarcode();
+  if (code === null) return; // cancelled
+  if (code === "") return alert(UNREADABLE);
+  $("f-sku").value = code.trim();
+  await lookupSku();
 });
 
 // Dialog "Scan": attach/look up a barcode while the form is open.

@@ -20,8 +20,9 @@ in `app/main.py`), so new variants slot into the right group with no setup.
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
-the browser (no internet or app needed — the decoder is bundled). Then it does a
-"remember this spool" lookup:
+the browser (no internet or app needed — the decoders are bundled: jsQR for QR
+codes, html5-qrcode for 1D barcodes like UPC/EAN). Then it does a "remember this
+spool" lookup:
 
 - **Seen this barcode before?** Material, color, brand, weight and temps fill in
   automatically — just set how full this spool is and save.
@@ -41,8 +42,10 @@ everything remembered (a natural hook for a future OpenSpool / NFC tie-in).
 ## Look up by maker code
 
 Some brands print a code/SKU you can use to pull the details from their site. In
-the Add/Edit dialog, pick the brand, enter the code, and hit **Look up** — it
-fills material, finish, color, weight and brand from the manufacturer's catalog.
+the Add/Edit dialog, pick the brand, enter the code (or tap **📷** to scan the
+brand's QR, which just holds the SKU), and hit **Look up** — it fills material,
+finish, color, weight and brand from the manufacturer's catalog. Scanning the QR
+auto-runs the lookup, so it's one step.
 
 - **Numakers** is supported now (their Shopify catalog is matched by SKU, e.g.
   `PLMT11KPAA` → PLA / Matte / Midnight Shade). Material, finish and weight are
