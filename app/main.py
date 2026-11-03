@@ -67,6 +67,25 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+def _asset_version() -> str:
+    """A short hash of the CSS/JS so the browser refetches them when they change.
+
+    Appended to the asset URLs as ?v=..., this makes every deploy that changes
+    app.js or style.css bust the browser cache automatically.
+    """
+    import hashlib
+    h = hashlib.md5()
+    for name in ("static/app.js", "static/style.css"):
+        try:
+            h.update((BASE_DIR / name).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:8]
+
+
+ASSET_VERSION = _asset_version()
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     """Make sure the tables exist, then remember products for any barcoded spools.
@@ -128,7 +147,12 @@ def serialize(f: Filament) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     """Serve the single-page catalog UI."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    response = templates.TemplateResponse(
+        "index.html", {"request": request, "asset_version": ASSET_VERSION}
+    )
+    # Always revalidate the page itself so it carries the current asset version.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.get("/api/meta")
