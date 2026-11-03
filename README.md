@@ -53,9 +53,22 @@ auto-runs the lookup, so it's one step.
   bit inconsistent.
 - The lookup runs **server-side**, so the container needs outbound internet. If
   it can't reach the maker, you just get a message and fall back to typing it in.
-- Resolvers live in `app/suppliers.py`, one per brand — see `RESOLVERS`. Bambu
-  Lab has no clean code lookup, so it's better handled later via the box details
-  (camera/OCR) or an OpenSpool NFC reader posting into the app.
+- Resolvers live in `app/suppliers.py`, one per brand — see `RESOLVERS`.
+
+## Scan a box label (OCR)
+
+Some brands (e.g. Bambu Lab) print everything on the box but have no clean code
+lookup. In the Add/Edit dialog, tap **📷 Scan box label**, photograph the label,
+and the server OCRs it and fills the form: material, finish, color, weight,
+nozzle temp, the barcode, and notes (filament code, temp range, model).
+
+- Runs **server-side with Tesseract** (bundled in the Docker image), so it needs
+  no internet. For local dev without Docker, install Tesseract and point
+  `TESSERACT_CMD` at it.
+- Parsers live in `app/labels.py`, one per brand in `BRAND_PARSERS`; the label's
+  text picks the brand automatically. Bambu Lab is supported now.
+- Take a straight-on, well-lit photo that fills the frame. Color is a best guess
+  to confirm; everything else is read from the printed fields.
 
 ## Run it on your PC (to try it out)
 

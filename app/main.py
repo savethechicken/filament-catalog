@@ -10,6 +10,7 @@ Routes:
   GET  /api/barcode/{code}    -> remembered product details for a scanned barcode
   GET  /api/products          -> every remembered product (barcode -> details)
   GET  /api/sku/{brand}/{code}-> look up filament details from a maker's catalog
+  POST /api/ocr               -> read filament details from a box-label photo
 
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
@@ -18,7 +19,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -28,6 +29,7 @@ from sqlmodel import Session, select
 from .database import init_db, get_session, engine
 from .models import Filament, FilamentCreate, FilamentUpdate, Product
 from . import suppliers
+from . import labels
 
 # Fill-level thresholds (percent of a full spool):
 #   > CAUTION_PCT          -> "good"    (green)
@@ -229,6 +231,27 @@ def lookup_sku(brand: str, code: str):
     if details is None:
         raise HTTPException(status_code=404, detail=f"No {brand} match for '{code}'.")
     return details
+
+
+@app.post("/api/ocr")
+def ocr_label(image: UploadFile = File(...)):
+    """Read filament details from a photo of the box label (OCR).
+
+    Fills the Add form from the printed label — handy for brands like Bambu that
+    put everything on the box but have no clean code lookup. Runs on the server
+    (Tesseract), no internet needed. Returns 422 if the label isn't recognized.
+    """
+    data = image.file.read()
+    try:
+        fields = labels.read_label(data)
+    except Exception:
+        raise HTTPException(status_code=500, detail="OCR failed on the server.")
+    if not fields:
+        raise HTTPException(
+            status_code=422,
+            detail="Couldn't read that label. Try a straight-on, well-lit photo filling the frame.",
+        )
+    return fields
 
 
 @app.get("/api/products")

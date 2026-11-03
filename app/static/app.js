@@ -352,6 +352,37 @@ async function lookupSku() {
 // "Look up" button: look up whatever SKU is typed in.
 $("sku-lookup-btn").addEventListener("click", lookupSku);
 
+// "Scan box label": photograph the label, OCR it on the server, fill the form.
+const ocrInput = $("ocr-input");
+$("label-scan-btn").addEventListener("click", () => ocrInput.click());
+ocrInput.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const btn = $("label-scan-btn");
+  btn.disabled = true;
+  btn.textContent = "Reading…";
+  try {
+    const fd = new FormData();
+    fd.append("image", file);
+    const res = await fetch("/api/ocr", { method: "POST", body: fd });
+    if (!res.ok) {
+      const msg = (await res.json().catch(() => ({}))).detail || "Couldn't read the label.";
+      return alert(msg);
+    }
+    const d = await res.json();
+    applyProduct(d);                              // material/finish/color/brand/weight/temps
+    if (d.barcode) $("f-barcode").value = d.barcode;
+    if (d.notes) $("f-notes").value = d.notes;
+    $("f-remaining").focus();                     // then set how full this spool is
+  } catch (err) {
+    alert("Label scan failed — is the server online?");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "📷 Scan box label";
+  }
+});
+
 // Maker-code "Scan": read the brand's QR (which just holds the SKU), then look it up.
 $("sku-scan-btn").addEventListener("click", async () => {
   const code = await scanBarcode();

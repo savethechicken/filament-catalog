@@ -67,6 +67,10 @@
         </div>
       </label>
 
+      <label>Or read a box label
+        <button type="button" id="label-scan-btn" class="wide-btn" title="Photograph the box label to fill the form">📷 Scan box label</button>
+      </label>
+
       <div class="field-row">
         <label>Material
           <input id="f-material" list="material-list" required placeholder="PLA" />
@@ -131,6 +135,8 @@
 
   <!-- Hidden camera input: taking a photo works over plain http (no HTTPS needed). -->
   <input type="file" id="scan-input" accept="image/*" capture="environment" hidden />
+  <!-- Separate camera input for box-label OCR (keeps the raw photo to upload). -->
+  <input type="file" id="ocr-input" accept="image/*" capture="environment" hidden />
   <!-- Scratch container the barcode decoder needs; never shown. -->
   <div id="qr-scratch" style="display:none"></div>
 
