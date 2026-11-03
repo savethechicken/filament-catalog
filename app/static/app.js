@@ -199,28 +199,67 @@ async function decodeFile(file) {
   }
 }
 
-// Try to read a QR code from a photo using jsQR. Returns the text, or null.
+function loadImage(url) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = url;
+  });
+}
+
+// jsQR on one region of an image at a given max dimension. Returns text or null.
+function jsQROnce(img, sx, sy, sw, sh, cap) {
+  const scale = Math.min(1, cap / Math.max(sw, sh));
+  const w = Math.max(1, Math.round(sw * scale));
+  const h = Math.max(1, Math.round(sh * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h);
+  const r = jsQR(data.data, w, h, { inversionAttempts: "attemptBoth" });
+  return r && r.data ? r.data : null;
+}
+
+// Read a QR from a photo. Native BarcodeDetector first (robust, same engine the
+// phone's camera uses, works over http), then jsQR at several scales and a
+// center crop so a small-in-frame or large photo still decodes. Returns null.
 async function decodeQR(file) {
+  // 1) Native detector (Android Chrome etc.)
+  try {
+    if ("BarcodeDetector" in window) {
+      let ok = true;
+      if (BarcodeDetector.getSupportedFormats) {
+        ok = (await BarcodeDetector.getSupportedFormats()).includes("qr_code");
+      }
+      if (ok) {
+        const detector = new BarcodeDetector({ formats: ["qr_code"] });
+        const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+        const codes = await detector.detect(bitmap);
+        if (bitmap.close) bitmap.close();
+        if (codes && codes.length) return codes[0].rawValue;
+      }
+    }
+  } catch (e) {
+    /* fall through to jsQR */
+  }
+
+  // 2) jsQR at a few sizes, then a center crop for a QR that's small in frame.
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i);
-      i.onerror = rej;
-      i.src = url;
-    });
-    // Scale big phone photos down so jsQR stays fast.
-    const maxDim = 1600;
-    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-    const w = Math.round(img.width * scale);
-    const h = Math.round(img.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    const data = canvas.getContext("2d").getImageData(0, 0, w, h);
-    const result = jsQR(data.data, w, h, { inversionAttempts: "attemptBoth" });
-    return result ? result.data : null;
+    const img = await loadImage(url);
+    const { width: W, height: H } = img;
+    for (const cap of [2000, 1200, 800]) {
+      const hit = jsQROnce(img, 0, 0, W, H, cap);
+      if (hit) return hit;
+    }
+    const cw = W * 0.6;
+    const ch = H * 0.6;
+    const crop = jsQROnce(img, (W - cw) / 2, (H - ch) / 2, cw, ch, 1200);
+    if (crop) return crop;
+    return null;
   } catch (e) {
     return null;
   } finally {
