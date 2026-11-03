@@ -14,6 +14,9 @@ const controls = {
 
 let lowStockPct = 25; // overwritten by /api/meta
 
+// Column sort (Excel-style). null column = default order (low stock first).
+const sortState = { column: null, dir: "asc" };
+
 // ---- Loading & rendering -------------------------------------------------
 
 async function loadMeta() {
@@ -55,7 +58,34 @@ async function loadRows() {
   renderRows(rows);
 }
 
+// Sort by the clicked column; blanks always sort last. Numeric for the fill bar.
+function sortRows(rows) {
+  if (!sortState.column) return rows;
+  const col = sortState.column;
+  const dir = sortState.dir === "desc" ? -1 : 1;
+  const numeric = col === "remaining_pct";
+  return [...rows].sort((a, b) => {
+    if (numeric) return ((a[col] || 0) - (b[col] || 0)) * dir;
+    const av = (a[col] || "").toString().toLowerCase();
+    const bv = (b[col] || "").toString().toLowerCase();
+    if (av === "" && bv !== "") return 1; // blanks last
+    if (bv === "" && av !== "") return -1;
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll("th[data-sort]").forEach((th) => {
+    th.classList.toggle("sort-asc", sortState.column === th.dataset.sort && sortState.dir === "asc");
+    th.classList.toggle("sort-desc", sortState.column === th.dataset.sort && sortState.dir === "desc");
+  });
+}
+
 function renderRows(rows) {
+  rows = sortRows(rows);
+  updateSortIndicators();
   const tbody = $("rows");
   tbody.innerHTML = "";
   $("count").textContent = `${rows.length} spool${rows.length === 1 ? "" : "s"}`;
@@ -414,6 +444,20 @@ function escapeHtml(s) {
 [controls.search, controls.family, controls.brand, controls.finish, controls.low].forEach((el) =>
   el.addEventListener("input", loadRows)
 );
+
+// Click a column header to sort; click again to reverse (A→Z ↔ Z→A).
+document.querySelectorAll("th[data-sort]").forEach((th) => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.sort;
+    if (sortState.column === col) {
+      sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+    } else {
+      sortState.column = col;
+      sortState.dir = "asc";
+    }
+    loadRows();
+  });
+});
 
 (async function init() {
   await loadMeta();

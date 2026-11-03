@@ -17,6 +17,9 @@ The material filter groups by **family**: picking **PLA** shows every variant
 Families are derived automatically from the material name (see `material_family`
 in `app/main.py`), so new variants slot into the right group with no setup.
 
+On the desktop table, **click a column header** (Material, Color, Finish, Brand,
+Remaining) to sort A→Z; click again to reverse to Z→A. Blanks sort last.
+
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in

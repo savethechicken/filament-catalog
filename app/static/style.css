@@ -81,6 +81,20 @@ thead th {
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
 }
+thead th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+thead th[data-sort]:hover { color: var(--text); }
+thead th[data-sort]::after {
+  content: "⇅";
+  margin-left: 6px;
+  opacity: .3;
+  font-size: .9em;
+}
+thead th.sort-asc::after { content: "▲"; opacity: .9; }
+thead th.sort-desc::after { content: "▼"; opacity: .9; }
 tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tbody tr:hover { background: var(--panel); }
 tbody tr.caution { box-shadow: inset 3px 0 0 var(--caution); }
