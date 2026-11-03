@@ -38,6 +38,22 @@ is used up and you delete it from the list, the barcode is *not* forgotten —
 scan it on your next refill and everything re-imports. `GET /api/products` lists
 everything remembered (a natural hook for a future OpenSpool / NFC tie-in).
 
+## Look up by maker code
+
+Some brands print a code/SKU you can use to pull the details from their site. In
+the Add/Edit dialog, pick the brand, enter the code, and hit **Look up** — it
+fills material, finish, color, weight and brand from the manufacturer's catalog.
+
+- **Numakers** is supported now (their Shopify catalog is matched by SKU, e.g.
+  `PLMT11KPAA` → PLA / Matte / Midnight Shade). Material, finish and weight are
+  reliable; **color is a best guess** to confirm, since their catalog data is a
+  bit inconsistent.
+- The lookup runs **server-side**, so the container needs outbound internet. If
+  it can't reach the maker, you just get a message and fall back to typing it in.
+- Resolvers live in `app/suppliers.py`, one per brand — see `RESOLVERS`. Bambu
+  Lab has no clean code lookup, so it's better handled later via the box details
+  (camera/OCR) or an OpenSpool NFC reader posting into the app.
+
 ## Run it on your PC (to try it out)
 
 Clone the repo, then from the project folder:

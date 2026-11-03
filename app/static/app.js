@@ -252,6 +252,30 @@ $("scan-btn").addEventListener("click", async () => {
   }
 });
 
+// "Look up" by maker code: fill the form from the manufacturer's catalog.
+$("sku-lookup-btn").addEventListener("click", async () => {
+  const brand = $("f-sku-brand").value;
+  const code = $("f-sku").value.trim();
+  if (!code) return;
+  const btn = $("sku-lookup-btn");
+  btn.disabled = true;
+  btn.textContent = "Looking…";
+  try {
+    const res = await fetch(`/api/sku/${encodeURIComponent(brand)}/${encodeURIComponent(code)}`);
+    if (!res.ok) {
+      const msg = (await res.json().catch(() => ({}))).detail || "Lookup failed.";
+      return alert(msg);
+    }
+    applyProduct(await res.json()); // fills material/finish/color/brand/weight
+    $("f-remaining").focus();       // then set how full this spool is
+  } catch (e) {
+    alert("Lookup failed — is the server online and able to reach the internet?");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Look up";
+  }
+});
+
 // Dialog "Scan": attach/look up a barcode while the form is open.
 $("dialog-scan-btn").addEventListener("click", async () => {
   const code = await scanBarcode();

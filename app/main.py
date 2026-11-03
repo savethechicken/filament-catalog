@@ -9,6 +9,7 @@ Routes:
   GET  /api/meta              -> dropdown values + the low-stock threshold
   GET  /api/barcode/{code}    -> remembered product details for a scanned barcode
   GET  /api/products          -> every remembered product (barcode -> details)
+  GET  /api/sku/{brand}/{code}-> look up filament details from a maker's catalog
 
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
@@ -26,6 +27,7 @@ from sqlmodel import Session, select
 
 from .database import init_db, get_session, engine
 from .models import Filament, FilamentCreate, FilamentUpdate, Product
+from . import suppliers
 
 # Fill-level thresholds (percent of a full spool):
 #   > CAUTION_PCT          -> "good"    (green)
@@ -210,6 +212,23 @@ def lookup_barcode(code: str, session: Session = Depends(get_session)):
         "nozzle_temp": prod.nozzle_temp,
         "bed_temp": prod.bed_temp,
     }
+
+
+@app.get("/api/sku/{brand}/{code}")
+def lookup_sku(brand: str, code: str):
+    """Look up filament details from a manufacturer's code/SKU (e.g. Numakers).
+
+    Fills the Add form from the maker's own catalog instead of typing it in.
+    Material/finish/weight are reliable; color is a best guess to confirm.
+    """
+    try:
+        details = suppliers.lookup_sku(brand, code)
+    except Exception:
+        # Network down, catalog moved, parse error — tell the UI to fall back to manual.
+        raise HTTPException(status_code=502, detail=f"Couldn't reach {brand} to look that up.")
+    if details is None:
+        raise HTTPException(status_code=404, detail=f"No {brand} match for '{code}'.")
+    return details
 
 
 @app.get("/api/products")

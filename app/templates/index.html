@@ -56,6 +56,16 @@
         </div>
       </label>
 
+      <label>Look up by maker code
+        <div class="barcode-field">
+          <select id="f-sku-brand" class="sku-brand">
+            <option value="numakers">Numakers</option>
+          </select>
+          <input id="f-sku" placeholder="supplier SKU, e.g. PLMT11KPAA" />
+          <button type="button" id="sku-lookup-btn" title="Fill from the maker's catalog">Look up</button>
+        </div>
+      </label>
+
       <div class="field-row">
         <label>Material
           <input id="f-material" list="material-list" required placeholder="PLA" />

@@ -147,6 +147,7 @@ dialog label input, dialog label select, dialog label textarea { width: 100%; ma
 .barcode-field { display: flex; gap: 8px; margin-top: 4px; }
 .barcode-field input { flex: 1; }
 .barcode-field button { white-space: nowrap; }
+.barcode-field .sku-brand { flex: 0 0 auto; width: auto; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 
 @media (max-width: 640px) {
