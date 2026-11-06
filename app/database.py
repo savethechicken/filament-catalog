@@ -7,6 +7,7 @@ SQLite needs no server and is perfect for a personal homelab tool.
 import os
 from pathlib import Path
 
+from sqlalchemy import event
 from sqlmodel import SQLModel, Session, create_engine
 
 # Where the SQLite file lives.
@@ -20,6 +21,22 @@ SQLITE_URL = f"sqlite:///{DB_PATH}"
 
 # check_same_thread=False lets FastAPI's worker threads share the connection.
 engine = create_engine(SQLITE_URL, echo=False, connect_args={"check_same_thread": False})
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_pragmas(dbapi_connection, _connection_record) -> None:
+    """Make SQLite tolerate the page being open on more than one device.
+
+    Without WAL a write locks the whole database file, so a phone and a desktop
+    saving at the same time can hit "database is locked". WAL lets readers keep
+    working during a write, and busy_timeout makes a writer wait briefly instead
+    of failing straight away. synchronous=NORMAL is the safe companion to WAL.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 
 def init_db() -> None:

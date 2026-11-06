@@ -16,6 +16,10 @@ import re
 import pytesseract
 from PIL import Image, ImageOps
 
+# A phone photo is ~12 MP. Refuse anything past 40 MP before Pillow allocates
+# the decoded bitmap; this also blocks "decompression bomb" payloads.
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
 _cmd = os.environ.get("TESSERACT_CMD")
 if _cmd:
     pytesseract.pytesseract.tesseract_cmd = _cmd
@@ -23,7 +27,13 @@ if _cmd:
 
 def ocr_image(data: bytes) -> str:
     """OCR raw image bytes into text, with light cleanup for phone photos."""
-    img = Image.open(io.BytesIO(data))
+    try:
+        img = Image.open(io.BytesIO(data))
+        if img.width * img.height > Image.MAX_IMAGE_PIXELS:
+            return ""                             # too large to be a label photo
+        img.load()                                # decode now so bad files fail here
+    except (OSError, Image.DecompressionBombError):
+        return ""                                 # not a usable image -> unrecognized
     img = ImageOps.exif_transpose(img)            # honor the phone's rotation
     img = img.convert("L")                        # grayscale
     if img.width < 1200:                          # upscale small photos

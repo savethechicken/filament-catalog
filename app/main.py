@@ -24,6 +24,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
 
 from .database import init_db, get_session, engine
@@ -38,6 +39,9 @@ from . import labels
 # "low_stock" (the filter, the sort-to-top, the reorder flag) means <= LOW_STOCK_PCT.
 LOW_STOCK_PCT = 25
 CAUTION_PCT = 50
+
+# Largest box-label photo we'll read into memory. 10 MB is plenty for a phone.
+MAX_LABEL_BYTES = 10 * 1024 * 1024
 
 # Base material families, checked most-specific first so PETG beats PET and each
 # variant maps to its base (PLA+ -> PLA, HSPETG -> PETG, PLA Pro -> PLA).
@@ -104,33 +108,58 @@ def on_startup() -> None:
         ).all()
         for f in spools:
             if f.barcode and f.barcode not in known:
-                upsert_product(session, f)
+                upsert_product(session, f, commit=False)
                 known.add(f.barcode)
+        session.commit()
 
 
-def upsert_product(session: Session, f: Filament) -> None:
-    """Save (or refresh) the product behind a spool's barcode. No-op without one."""
+def upsert_product(session: Session, f: Filament, *, commit: bool = True) -> None:
+    """Save (or refresh) the product behind a spool's barcode. No-op without one.
+
+    SQLite's INSERT ... ON CONFLICT makes this safe when two requests save the
+    same new barcode at once. Pass commit=False when the caller owns the
+    transaction, so the spool and its remembered product are written together.
+    """
     if not f.barcode:
         return
-    prod = session.exec(select(Product).where(Product.barcode == f.barcode)).first()
-    if prod is None:
-        prod = Product(barcode=f.barcode, material=f.material, color=f.color)
-    prod.material = f.material
-    prod.color = f.color
-    prod.finish = f.finish
-    prod.brand = f.brand
-    prod.spool_weight_g = f.spool_weight_g
-    prod.nozzle_temp = f.nozzle_temp
-    prod.bed_temp = f.bed_temp
-    prod.updated_at = datetime.now(timezone.utc)
-    session.add(prod)
-    session.commit()
+
+    values = {
+        "barcode": f.barcode,
+        "material": f.material,
+        "color": f.color,
+        "finish": f.finish,
+        "brand": f.brand,
+        "spool_weight_g": f.spool_weight_g,
+        "nozzle_temp": f.nozzle_temp,
+        "bed_temp": f.bed_temp,
+        "updated_at": datetime.now(timezone.utc),
+    }
+    statement = sqlite_insert(Product).values(**values)
+    session.execute(
+        statement.on_conflict_do_update(
+            index_elements=["barcode"],
+            set_={key: value for key, value in values.items() if key != "barcode"},
+        )
+    )
+    if commit:
+        session.commit()
+
+
+def clamp_remaining(remaining_g: Optional[int], spool_weight_g: Optional[int]) -> int:
+    """Keep grams remaining within the spool's physical capacity.
+
+    The form already limits this, but the API is open and an over-entry would
+    otherwise render a >100% fill bar and a misleading percentage.
+    """
+    weight = max(spool_weight_g or 0, 0)
+    return max(0, min(remaining_g or 0, weight))
 
 
 def serialize(f: Filament) -> dict:
-    """Turn a Filament row into a dict with the two computed fields the page needs."""
+    """Turn a Filament row into a dict with the computed fields the page needs."""
     weight = f.spool_weight_g or 0
-    pct = round((f.remaining_g / weight) * 100) if weight else 0
+    remaining = clamp_remaining(f.remaining_g, weight)
+    pct = round((remaining / weight) * 100) if weight else 0
     if pct <= LOW_STOCK_PCT:
         level = "low"
     elif pct < CAUTION_PCT:
@@ -138,6 +167,7 @@ def serialize(f: Filament) -> dict:
     else:
         level = "good"
     data = f.model_dump()
+    data["remaining_g"] = remaining
     data["remaining_pct"] = pct
     data["level"] = level
     data["low_stock"] = pct <= LOW_STOCK_PCT
@@ -265,7 +295,14 @@ def ocr_label(image: UploadFile = File(...)):
     put everything on the box but have no clean code lookup. Runs on the server
     (Tesseract), no internet needed. Returns 422 if the label isn't recognized.
     """
-    data = image.file.read()
+    if image.content_type and not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Upload a photo of the label.")
+    data = image.file.read(MAX_LABEL_BYTES + 1)
+    if len(data) > MAX_LABEL_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That photo is too large. Use one under 10 MB.",
+        )
     try:
         fields = labels.read_label(data)
     except Exception:
@@ -290,12 +327,12 @@ def list_products(session: Session = Depends(get_session)):
 def create_filament(payload: FilamentCreate, session: Session = Depends(get_session)):
     """Add a new spool."""
     f = Filament.model_validate(payload)
+    f.remaining_g = clamp_remaining(f.remaining_g, f.spool_weight_g)
     session.add(f)
-    session.commit()
+    upsert_product(session, f, commit=False)   # remember this product behind its barcode
+    session.commit()                          # spool + product land together
     session.refresh(f)
-    result = serialize(f)
-    upsert_product(session, f)   # remember this product behind its barcode
-    return result
+    return serialize(f)
 
 
 @app.patch("/api/filaments/{filament_id}")
@@ -311,13 +348,13 @@ def update_filament(
     changes = payload.model_dump(exclude_unset=True)
     for key, value in changes.items():
         setattr(f, key, value)
+    f.remaining_g = clamp_remaining(f.remaining_g, f.spool_weight_g)
     f.updated_at = datetime.now(timezone.utc)
     session.add(f)
-    session.commit()
+    upsert_product(session, f, commit=False)   # keep the remembered product in step
+    session.commit()                          # spool + product land together
     session.refresh(f)
-    result = serialize(f)
-    upsert_product(session, f)   # keep the remembered product in step with edits
-    return result
+    return serialize(f)
 
 
 @app.delete("/api/filaments/{filament_id}")
