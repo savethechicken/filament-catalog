@@ -22,6 +22,21 @@ in `app/main.py`), so new variants slot into the right group with no setup.
 On the desktop table, **click a column header** (Material, Color, Finish, Brand,
 Remaining) to sort A→Z; click again to reverse to Z→A. Blanks sort last.
 
+## Export to a spreadsheet
+
+Tap **⬇ Export CSV** in the header to download the current view as a `.csv` file
+you can open in Excel, Google Sheets, or LibreOffice. The export uses the same
+search and filters as the page, so it always contains exactly the spools you're
+looking at — filter to **PLA** and **Low stock only**, and you get a shopping
+list.
+
+The file includes the spool id, material, color, finish, brand, barcode, full
+weight, grams remaining, fill percentage, temps, notes, and created/updated
+timestamps. It's written as UTF-8 with a BOM so Excel shows accented characters
+correctly. The same download is available directly at
+`GET /api/export.csv` (it accepts the same `q`, `family`, `brand`, `finish`, and
+`low_stock` query parameters as `/api/filaments`).
+
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
@@ -91,6 +106,22 @@ uvicorn app.main:app --reload --port 8077
 ```
 
 Then open http://localhost:8077
+
+## Run the tests
+
+The repo includes a pytest smoke suite that drives the real app through
+FastAPI's `TestClient`. It covers the page, spool CRUD, barcode memory, gram
+clamping, the OCR upload guards, SQLite settings, and the CSV export. Tests use
+a temporary SQLite database, so they never touch your `filament.db`, and they
+don't need Tesseract or Docker.
+
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+`requirements-dev.txt` adds `pytest` and `httpx` on top of the runtime
+requirements; the Docker image still installs only `requirements.txt`.
 
 ## Run it on `mediacenter` from GitHub (Docker — same as Homepage Editor)
 
@@ -189,7 +220,12 @@ filament-catalog/
   Dockerfile              builds the container image
   docker-compose.yml      how the server runs it
   .github/workflows/      GitHub Action that builds + publishes the image
+  tests/
+    conftest.py           temp database + TestClient fixture
+    test_smoke.py         API, CSV export, and UI smoke tests
+  pytest.ini
   requirements.txt
+  requirements-dev.txt    test-only dependencies
   data/filament.db        your data (Docker volume; gitignored)
 ```
 

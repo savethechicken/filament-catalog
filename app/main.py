@@ -3,6 +3,7 @@
 Routes:
   GET  /                      -> the web page (templates/index.html)
   GET  /api/filaments         -> list spools, with optional search/filter
+  GET  /api/export.csv        -> download the filtered spool list as CSV
   POST /api/filaments         -> add a spool
   PATCH/api/filaments/{id}    -> edit a spool
   DELETE /api/filaments/{id}  -> remove a spool
@@ -15,13 +16,15 @@ Routes:
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
 
+import csv
+import io
 import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
@@ -44,10 +47,29 @@ CAUTION_PCT = 50
 # Largest box-label photo we'll read into memory. 10 MB is plenty for a phone.
 MAX_LABEL_BYTES = 10 * 1024 * 1024
 
+# Columns written by /api/export.csv, in order: (field name in the API, header).
+# Kept explicit so the file stays stable if the stored model grows more fields.
+CSV_FIELDS = [
+    ("id", "id"),
+    ("material", "material"),
+    ("color", "color"),
+    ("finish", "finish"),
+    ("brand", "brand"),
+    ("barcode", "barcode"),
+    ("spool_weight_g", "spool_weight_g"),
+    ("remaining_g", "remaining_g"),
+    ("remaining_pct", "remaining_pct"),
+    ("nozzle_temp", "nozzle_temp"),
+    ("bed_temp", "bed_temp"),
+    ("notes", "notes"),
+    ("created_at", "created_at"),
+    ("updated_at", "updated_at"),
+]
+
 # Shown in the page footer so you can tell which build the server is running.
 # Bump APP_VERSION when you make a notable change; BUILD_SHA is injected by the
 # Docker build (see Dockerfile / docker-publish.yml) and is blank locally.
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 BUILD_SHA = os.environ.get("BUILD_SHA", "").strip()
 
 # Base material families, checked most-specific first so PETG beats PET and each
@@ -226,6 +248,28 @@ def list_filaments(
     session: Session = Depends(get_session),
 ):
     """Return spools, newest first, narrowed by any filters that were passed."""
+    return query_filaments(
+        session,
+        q=q,
+        material=material,
+        family=family,
+        brand=brand,
+        finish=finish,
+        low_stock=low_stock,
+    )
+
+
+def query_filaments(
+    session: Session,
+    *,
+    q: Optional[str] = None,
+    material: Optional[str] = None,
+    family: Optional[str] = None,
+    brand: Optional[str] = None,
+    finish: Optional[str] = None,
+    low_stock: bool = False,
+) -> list[dict]:
+    """Load spools and apply the page's filters. Shared by the list and the CSV."""
     statement = select(Filament)
     if material:
         statement = statement.where(Filament.material == material)
@@ -258,6 +302,55 @@ def list_filaments(
     # Low stock first, then by material, then color — handy ordering.
     results.sort(key=lambda r: (not r["low_stock"], r["material"], r["color"]))
     return results
+
+
+def _csv_value(value) -> str:
+    """Render one CSV cell: blank for missing values, ISO text for timestamps."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat(timespec="seconds")
+    return str(value)
+
+
+@app.get("/api/export.csv")
+def export_csv(
+    q: Optional[str] = None,
+    material: Optional[str] = None,
+    family: Optional[str] = None,
+    brand: Optional[str] = None,
+    finish: Optional[str] = None,
+    low_stock: bool = Query(False),
+    session: Session = Depends(get_session),
+):
+    """Download the spools matching the current filters as a CSV file.
+
+    Shares query_filaments() with /api/filaments, so the download always matches
+    what the page is showing. The UTF-8 BOM lets Excel open it without mangling
+    accented colors or notes.
+    """
+    rows = query_filaments(
+        session,
+        q=q,
+        material=material,
+        family=family,
+        brand=brand,
+        finish=finish,
+        low_stock=low_stock,
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([header for _, header in CSV_FIELDS])
+    for row in rows:
+        writer.writerow([_csv_value(row.get(key)) for key, _ in CSV_FIELDS])
+
+    filename = f"filament-catalog-{datetime.now(timezone.utc):%Y-%m-%d}.csv"
+    return Response(
+        content="\ufeff" + buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/barcode/{code}")

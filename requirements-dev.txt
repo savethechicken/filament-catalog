@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Test-only dependencies (not copied into the runtime Docker image).
+pytest==8.3.4
+httpx==0.28.1

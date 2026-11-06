@@ -47,15 +47,21 @@ function fillDatalist(id, values) {
 }
 
 async function loadRows() {
+  const params = currentParams();
+  const rows = await fetch("/api/filaments?" + params.toString()).then((r) => r.json());
+  renderRows(rows);
+}
+
+// The filter controls as a query string, shared by the table and the CSV export
+// so the download always matches what is on screen.
+function currentParams() {
   const params = new URLSearchParams();
   if (controls.search.value.trim()) params.set("q", controls.search.value.trim());
   if (controls.family.value) params.set("family", controls.family.value);
   if (controls.brand.value) params.set("brand", controls.brand.value);
   if (controls.finish.value) params.set("finish", controls.finish.value);
   if (controls.low.checked) params.set("low_stock", "true");
-
-  const rows = await fetch("/api/filaments?" + params.toString()).then((r) => r.json());
-  renderRows(rows);
+  return params;
 }
 
 // Sort by the clicked column; blanks always sort last. Numeric for the fill bar.
@@ -444,6 +450,11 @@ function escapeHtml(s) {
 [controls.search, controls.family, controls.brand, controls.finish, controls.low].forEach((el) =>
   el.addEventListener("input", loadRows)
 );
+
+// "Export CSV": download the rows that match the filters currently applied.
+$("export-btn").addEventListener("click", () => {
+  window.location.href = "/api/export.csv?" + currentParams().toString();
+});
 
 // Click a column header to sort; click again to reverse (A→Z ↔ Z→A).
 document.querySelectorAll("th[data-sort]").forEach((th) => {
