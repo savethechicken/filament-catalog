@@ -11,6 +11,8 @@ step, no external database — the whole catalog lives in one `filament.db` file
 Per spool: material, color, finish, brand, barcode, full-spool weight, grams
 remaining, nozzle/bed temps, and notes. The list shows a fill bar, flags
 anything at or below **25%** as low stock, and lets you search and filter.
+Grams remaining are clamped to the spool's full weight, so the bar always reads
+between 0 and 100%.
 
 The material filter groups by **family**: picking **PLA** shows every variant
 (PLA, PLA+, PLA Pro, HSPLA+); **PETG** covers PETG, PETG+, HSPETG; and so on.
@@ -68,6 +70,9 @@ nozzle temp, the barcode, and notes (filament code, temp range, model).
 - Runs **server-side with Tesseract** (bundled in the Docker image), so it needs
   no internet. For local dev without Docker, install Tesseract and point
   `TESSERACT_CMD` at it.
+- Uploads are capped at **10 MB / 40 megapixels**. That's well above a normal
+  phone photo, but stops an oversized image from tying up the server. Files that
+  aren't images are rejected before OCR runs.
 - Parsers live in `app/labels.py`, one per brand in `BRAND_PARSERS`; the label's
   text picks the brand automatically. Bambu Lab is supported now.
 - Take a straight-on, well-lit photo that fills the frame. Color is a best guess
@@ -134,9 +139,35 @@ it. (To test a change on the server without waiting for GHCR, use
 
 Your catalog lives in **`filament.db`**. In Docker that's mounted at
 `./data/filament.db` inside the project folder on the server (the `data/`
-volume), so it survives image updates. Copy that file to back up, or delete it
-and recreate the container to start fresh. Running locally without Docker, it's
+volume), so it survives image updates. Running locally without Docker, it's
 `filament.db` in the project root.
+
+SQLite runs in **WAL mode** (write-ahead logging), so recent writes can sit in
+`filament.db-wal` until they're checkpointed. You'll see `filament.db-wal` and
+`filament.db-shm` beside the database — that's normal, and copying
+`filament.db` alone while the app is running can miss the latest changes. WAL
+also lets several devices use the catalog at the same time without locking each
+other out.
+
+The simplest clean backup is to stop the app, copy the file, and start it again:
+
+```bash
+cd /opt/docker/filament-catalog
+docker compose stop
+cp data/filament.db ~/filament-$(date +%F).db
+docker compose start
+```
+
+Or take an online backup without downtime, then copy it out:
+
+```bash
+docker compose exec filament-catalog python -c "import sqlite3; s=sqlite3.connect('/data/filament.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close(); s.close()"
+cp data/backup.db ~/filament-$(date +%F).db && rm data/backup.db
+```
+
+To start fresh, stop the container, delete `data/filament.db` (and any
+`-wal`/`-shm` siblings), and recreate it with `docker compose up -d`. The
+starter catalog is seeded again on the next start.
 
 ## Project layout
 
