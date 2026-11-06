@@ -8,7 +8,10 @@
 services:
   filament-catalog:
     image: ghcr.io/savethechicken/filament-catalog:latest
-    build: .
+    build:
+      context: .
+      args:
+        BUILD_SHA: ${BUILD_SHA:-local}
     container_name: filament-catalog
     restart: unless-stopped
     ports:

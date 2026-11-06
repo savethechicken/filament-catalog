@@ -143,6 +143,15 @@ tbody tr.low { box-shadow: inset 3px 0 0 var(--danger); }
 
 .empty { color: var(--muted); text-align: center; padding: 32px; }
 
+.footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .78rem;
+  text-align: center;
+}
+
 /* Dialog */
 dialog {
   border: 1px solid var(--line);

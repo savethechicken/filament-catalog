@@ -43,6 +43,10 @@
   </table>
   <p id="empty" class="empty" hidden>No spools match. Try clearing the filters.</p>
 
+  <footer class="footer">
+    Filament Catalog v{{ app_version }}{% if build_sha %} &middot; {{ build_sha }}{% endif %}
+  </footer>
+
   <!-- Add / Edit dialog -->
   <dialog id="editor">
     <form id="editor-form" method="dialog">

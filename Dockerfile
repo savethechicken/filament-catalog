@@ -19,6 +19,11 @@ COPY app ./app
 
 # Store the database on a mounted volume, not inside the image.
 ENV FILAMENT_DB=/data/filament.db
+
+# Commit SHA injected by the GitHub Action; shown in the page footer.
+ARG BUILD_SHA=
+ENV BUILD_SHA=$BUILD_SHA
+
 EXPOSE 8077
 
 # Seed the starter spools on first run (no-op once data exists), then serve.

@@ -15,6 +15,7 @@ Routes:
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
 
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -42,6 +43,12 @@ CAUTION_PCT = 50
 
 # Largest box-label photo we'll read into memory. 10 MB is plenty for a phone.
 MAX_LABEL_BYTES = 10 * 1024 * 1024
+
+# Shown in the page footer so you can tell which build the server is running.
+# Bump APP_VERSION when you make a notable change; BUILD_SHA is injected by the
+# Docker build (see Dockerfile / docker-publish.yml) and is blank locally.
+APP_VERSION = "1.0.0"
+BUILD_SHA = os.environ.get("BUILD_SHA", "").strip()
 
 # Base material families, checked most-specific first so PETG beats PET and each
 # variant maps to its base (PLA+ -> PLA, HSPETG -> PETG, PLA Pro -> PLA).
@@ -178,7 +185,13 @@ def serialize(f: Filament) -> dict:
 def index(request: Request):
     """Serve the single-page catalog UI."""
     response = templates.TemplateResponse(
-        "index.html", {"request": request, "asset_version": ASSET_VERSION}
+        "index.html",
+        {
+            "request": request,
+            "asset_version": ASSET_VERSION,
+            "app_version": APP_VERSION,
+            "build_sha": BUILD_SHA[:7],
+        },
     )
     # Always revalidate the page itself so it carries the current asset version.
     response.headers["Cache-Control"] = "no-cache"

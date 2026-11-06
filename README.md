@@ -118,6 +118,9 @@ git pull
 docker compose pull && docker compose up -d --force-recreate
 ```
 
+The footer at the bottom of the page shows the running version and short commit
+hash, so you can confirm the new image is live.
+
 `restart: unless-stopped` in `docker-compose.yml` keeps it running across
 reboots.
 
@@ -194,4 +197,8 @@ filament-catalog/
 
 - **Fill-color thresholds**: `LOW_STOCK_PCT` (red, 25) and `CAUTION_PCT`
   (amber, 50) near the top of `app/main.py`.
+- **Version in the footer**: `APP_VERSION` near the top of `app/main.py`; bump it
+  when you make a notable change. The short commit hash beside it is injected at
+  image build time (`BUILD_SHA`), so the page always says exactly which build is
+  deployed.
 - **Port**: change the `8077` mapping in `docker-compose.yml` (left side).
