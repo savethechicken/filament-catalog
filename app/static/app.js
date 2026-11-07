@@ -223,11 +223,15 @@ async function removeSpool(id) {
 const useDialog = $("use-dialog");
 let useTarget = null;
 
-function openUse(spool) {
+function openUse(spool, grams = 50, note = "") {
   useTarget = spool;
   $("use-summary").textContent =
     `${spool.material} · ${spool.color} — ${spool.remaining_g} of ${spool.spool_weight_g} g left`;
-  $("use-grams").value = 50;
+  const suggested = Math.round(Number(grams));
+  $("use-grams").value = Math.max(1, Number.isFinite(suggested) ? suggested : 50);
+  const source = $("use-source");
+  source.hidden = !note;
+  source.textContent = note;
   updateUsePreview();
   useDialog.showModal();
   $("use-grams").select();
@@ -271,6 +275,144 @@ $("use-form").addEventListener("submit", async (e) => {
   useDialog.close();
   await loadRows();
 });
+
+// ---- Usage from a sliced file -------------------------------------------
+// Read the slicer's own per-filament estimate from a .gcode or .gcode.3mf,
+// let the user pick which spool each slot maps to, then hand the grams to the
+// Use dialog. The slicer number is only a suggestion until confirmed there.
+
+const sliceDialog = $("slice-dialog");
+const sliceFile = $("slice-file");
+
+$("slice-btn").addEventListener("click", () => {
+  $("slice-results").innerHTML = "";
+  $("slice-status").hidden = true;
+  $("slice-status").textContent = "";
+  sliceFile.value = "";
+  sliceDialog.showModal();
+});
+
+$("slice-close-btn").addEventListener("click", () => sliceDialog.close());
+$("slice-pick-btn").addEventListener("click", () => sliceFile.click());
+
+sliceFile.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ""; // let the same file be picked again
+  if (file) await loadSliceUsage(file);
+});
+
+async function loadSliceUsage(file) {
+  const status = $("slice-status");
+  $("slice-results").innerHTML = "";
+  status.hidden = false;
+  status.textContent = `Reading ${file.name}…`;
+
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch("/api/slice/usage", { method: "POST", body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status.textContent = data.detail || "Couldn't read that file.";
+      return;
+    }
+    if (!data.filaments || !data.filaments.length) {
+      status.textContent = "No filament usage found in that file.";
+      return;
+    }
+
+    const spools = await fetch("/api/filaments").then((r) => r.json());
+    if (!spools.length) {
+      status.textContent = "Add a spool first, then load the slice again.";
+      return;
+    }
+
+    const count = data.filaments.length;
+    status.textContent =
+      `${file.name}: ${data.total_g} g total across ${count} ` +
+      `filament${count === 1 ? "" : "s"}.`;
+    renderSliceResults(data.filaments, spools);
+  } catch (err) {
+    status.textContent = "Upload failed — is the server online?";
+  }
+}
+
+function normalizeHex(value) {
+  const text = String(value || "").trim();
+  return /^#[0-9a-f]{3,8}$/i.test(text) ? text : null;
+}
+
+// Pick the obvious spool, but only when it really is obvious. Material names
+// must match; a hex color is used only when both sides actually store hex.
+function matchSpool(slot, spools) {
+  const material = String(slot.type || "").toLowerCase();
+  const hex = normalizeHex(slot.color);
+  let candidates = material
+    ? spools.filter((s) => String(s.material || "").toLowerCase() === material)
+    : [];
+  if (hex) {
+    const exact = candidates.filter((s) => normalizeHex(s.color) === hex);
+    if (exact.length) candidates = exact;
+  }
+  if (candidates.length === 1) return candidates[0];
+  if (!material && spools.length === 1) return spools[0]; // type unknown, only one candidate
+  return null;
+}
+
+function renderSliceResults(filaments, spools) {
+  const box = $("slice-results");
+  box.innerHTML = "";
+  const sorted = [...spools].sort((a, b) => (b.remaining_g || 0) - (a.remaining_g || 0));
+
+  filaments.forEach((slot, index) => {
+    const hex = normalizeHex(slot.color);
+    const swatch = hex ? `<span class="swatch" style="background:${hex}"></span>` : "";
+    const profile = slot.profile
+      ? `<span class="slice-detail">${escapeHtml(slot.profile)}</span>`
+      : "";
+    const options = sorted
+      .map(
+        (s) =>
+          `<option value="${s.id}">#${s.id} — ${escapeHtml(s.material)} / ` +
+          `${escapeHtml(s.color)} (${s.remaining_g} g left)</option>`
+      )
+      .join("");
+
+    const row = document.createElement("div");
+    row.className = "slice-row";
+    row.innerHTML = `
+      <div class="slice-main">
+        <span class="pill">${escapeHtml(slot.type || "Filament")}</span>
+        ${swatch}
+        <strong>${slot.grams} g</strong>
+        ${profile}
+      </div>
+      <div class="slice-target">
+        <select data-slot-select="${index}">
+          <option value="">Choose a spool…</option>
+          ${options}
+        </select>
+        <button class="link" data-slot-apply="${index}">Use…</button>
+      </div>`;
+    box.appendChild(row);
+
+    const match = matchSpool(slot, sorted);
+    if (match) row.querySelector(`[data-slot-select="${index}"]`).value = match.id;
+  });
+
+  box.querySelectorAll("[data-slot-apply]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.slotApply);
+      const select = box.querySelector(`[data-slot-select="${index}"]`);
+      const spool = sorted.find((s) => String(s.id) === select.value);
+      if (!spool) return alert("Choose which spool this filament came from.");
+      const slot = filaments[index];
+      const note = `Slicer estimate: ${slot.grams} g` + (slot.type ? ` of ${slot.type}` : "") + ".";
+      sliceDialog.close();
+      openUse(spool, slot.grams, note);
+    })
+  );
+}
 
 // ---- Known products ------------------------------------------------------
 // The barcode memory behind "remember this spool". Editing here only changes

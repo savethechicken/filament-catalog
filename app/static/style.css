@@ -179,6 +179,38 @@ tbody tr.low { box-shadow: inset 3px 0 0 var(--danger); }
 .use-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .use-presets button { padding: 6px 12px; }
 
+/* Usage from a sliced file */
+#slice-dialog { width: min(680px, 94vw); }
+.slice-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.slice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.slice-main { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.slice-detail { color: var(--muted); font-size: .8rem; }
+.slice-target { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.slice-target select { max-width: 280px; }
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
 .footer {
   margin-top: 32px;
   padding-top: 16px;
@@ -273,4 +305,8 @@ dialog label input, dialog label select, dialog label textarea { width: 100%; ma
   /* Known-product rows stack their action buttons under the details. */
   .product-row { flex-direction: column; align-items: stretch; }
   .product-actions { align-self: flex-end; }
+
+  /* Slicer rows: picker and Use button on their own line. */
+  .slice-row { flex-direction: column; align-items: stretch; }
+  .slice-target select { flex: 1; max-width: none; }
 }

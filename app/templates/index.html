@@ -12,6 +12,7 @@
     <div class="header-actions">
       <button id="scan-btn">📷 Scan</button>
       <button id="products-btn" title="Manage remembered barcode details">📚 Products</button>
+      <button id="slice-btn" title="Read filament usage from a sliced .gcode or .gcode.3mf">📄 From slice</button>
       <button id="export-btn" title="Download the current view as a spreadsheet">⬇ Export CSV</button>
       <button id="add-btn" class="primary">+ Add spool</button>
     </div>
@@ -144,6 +145,7 @@
     <form id="use-form" method="dialog">
       <h2>Mark filament used</h2>
       <p id="use-summary" class="dialog-hint"></p>
+      <p id="use-source" class="dialog-hint" hidden></p>
       <label>Grams used
         <input id="use-grams" type="number" min="1" step="1" value="50" required />
       </label>
@@ -160,6 +162,22 @@
         <button type="submit" class="primary">Remove grams</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Usage from a sliced file -->
+  <dialog id="slice-dialog">
+    <h2>Usage from a sliced file</h2>
+    <p class="dialog-hint">
+      Pick the .gcode or .gcode.3mf you just sliced. Choose a spool for each
+      filament, then confirm in the Use dialog — nothing changes until you do.
+    </p>
+    <button type="button" id="slice-pick-btn" class="wide-btn">Choose file…</button>
+    <p id="slice-status" class="dialog-hint" hidden></p>
+    <div id="slice-results" class="slice-results"></div>
+    <div class="dialog-actions">
+      <button type="button" id="slice-close-btn">Close</button>
+    </div>
+    <input type="file" id="slice-file" accept=".gcode,.3mf,application/zip" hidden />
   </dialog>
 
   <!-- Known products: the editable barcode memory -->

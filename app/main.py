@@ -15,6 +15,7 @@ Routes:
   DELETE /api/products/{code} -> forget a remembered product
   GET  /api/sku/{brand}/{code}-> look up filament details from a maker's catalog
   POST /api/ocr               -> read filament details from a box-label photo
+  POST /api/slice/usage       -> read per-filament grams from a .gcode/.gcode.3mf
 
 Run it with:  uvicorn app.main:app --host 0.0.0.0 --port 8077
 """
@@ -38,6 +39,7 @@ from .database import init_db, get_session, engine
 from .models import Filament, FilamentCreate, FilamentUpdate, FilamentUse, Product, ProductUpdate
 from . import suppliers
 from . import labels
+from . import slicer
 
 # Fill-level thresholds (percent of a full spool):
 #   > CAUTION_PCT          -> "good"    (green)
@@ -49,6 +51,10 @@ CAUTION_PCT = 50
 
 # Largest box-label photo we'll read into memory. 10 MB is plenty for a phone.
 MAX_LABEL_BYTES = 10 * 1024 * 1024
+
+# Largest sliced file we'll accept. The parser streams line-by-line, but the
+# upload itself is spooled to disk first, so keep a sane ceiling.
+MAX_SLICE_BYTES = 512 * 1024 * 1024
 
 # Columns written by /api/export.csv, in order: (field name in the API, header).
 # Kept explicit so the file stays stable if the stored model grows more fields.
@@ -72,7 +78,7 @@ CSV_FIELDS = [
 # Shown in the page footer so you can tell which build the server is running.
 # Bump APP_VERSION when you make a notable change; BUILD_SHA is injected by the
 # Docker build (see Dockerfile / docker-publish.yml) and is blank locally.
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 BUILD_SHA = os.environ.get("BUILD_SHA", "").strip()
 
 # Base material families, checked most-specific first so PETG beats PET and each
@@ -428,6 +434,26 @@ def ocr_label(image: UploadFile = File(...)):
             detail="Couldn't read that label. Try a straight-on, well-lit photo filling the frame.",
         )
     return fields
+
+
+@app.post("/api/slice/usage")
+def slice_usage(file: UploadFile = File(...)):
+    """Read the slicer's per-filament estimate from a sliced file.
+
+    Accepts a raw ``.gcode`` or a sliced ``.gcode.3mf`` / ``.3mf``. Returns the
+    suggested grams per filament slot; the UI still asks which spool to use and
+    confirms before subtracting anything.
+    """
+    size = getattr(file, "size", None)
+    if size and size > MAX_SLICE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That file is too large. Sliced files under 512 MB work best.",
+        )
+    try:
+        return slicer.parse_slice_usage(file.file, file.filename or "")
+    except slicer.SliceUsageError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/api/products")

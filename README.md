@@ -48,6 +48,24 @@ This is the quick alternative to opening the edit dialog and retyping the total.
 The underlying endpoint is `POST /api/filaments/{id}/use` with a JSON body like
 `{"grams": 50}`.
 
+### Use grams from a sliced file
+
+Tap **📄 From slice** in the header and pick the `.gcode` or `.gcode.3mf` you
+just sliced. The app reads the slicer's own estimate — the
+`; filament used [g] = …` comments at the end of a G-code file, or
+`Metadata/slice_info.config` inside a sliced 3MF — and lists each filament slot
+with its grams.
+
+Choose the spool each slot came from (the app preselects the only spool whose
+material matches, when there's just one), then hit **Use…**. That opens the
+normal Use dialog prefilled with the slicer's number so you can confirm before
+anything is subtracted. The slicer's figure covers the whole job, including
+supports and any wipe tower, so it's an estimate rather than a receipt.
+
+The parser covers OrcaSlicer, PrusaSlicer, Bambu Studio, and their forks because
+they all write the same comments. The endpoint is `POST /api/slice/usage`
+(multipart field `file`), returning `{"source": …, "total_g": …, "filaments": […]}`.
+
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
@@ -137,7 +155,8 @@ Then open http://localhost:8077
 
 The repo includes a pytest smoke suite that drives the real app through
 FastAPI's `TestClient`. It covers the page, spool CRUD, barcode memory, gram
-clamping, the OCR upload guards, SQLite settings, and the CSV export. Tests use
+clamping, slicer-usage parsing, the OCR upload guards, SQLite settings, and the
+CSV export. Tests use
 a temporary SQLite database, so they never touch your `filament.db`, and they
 don't need Tesseract or Docker.
 
@@ -237,6 +256,7 @@ filament-catalog/
     main.py        FastAPI routes (the API + the page)
     models.py      the Filament table and form shapes
     database.py    SQLite connection + table creation
+    slicer.py      reads grams from .gcode / .gcode.3mf
     seed.py        your starting 15 spools
     templates/
       index.html   the page
