@@ -6,10 +6,13 @@ Routes:
   GET  /api/export.csv        -> download the filtered spool list as CSV
   POST /api/filaments         -> add a spool
   PATCH/api/filaments/{id}    -> edit a spool
+  POST /api/filaments/{id}/use-> subtract grams from a spool (quick "used" action)
   DELETE /api/filaments/{id}  -> remove a spool
   GET  /api/meta              -> dropdown values + the low-stock threshold
   GET  /api/barcode/{code}    -> remembered product details for a scanned barcode
   GET  /api/products          -> every remembered product (barcode -> details)
+  PATCH/api/products/{code}   -> correct remembered product details
+  DELETE /api/products/{code} -> forget a remembered product
   GET  /api/sku/{brand}/{code}-> look up filament details from a maker's catalog
   POST /api/ocr               -> read filament details from a box-label photo
 
@@ -32,7 +35,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session, select
 
 from .database import init_db, get_session, engine
-from .models import Filament, FilamentCreate, FilamentUpdate, Product
+from .models import Filament, FilamentCreate, FilamentUpdate, FilamentUse, Product, ProductUpdate
 from . import suppliers
 from . import labels
 
@@ -69,7 +72,7 @@ CSV_FIELDS = [
 # Shown in the page footer so you can tell which build the server is running.
 # Bump APP_VERSION when you make a notable change; BUILD_SHA is injected by the
 # Docker build (see Dockerfile / docker-publish.yml) and is blank locally.
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 BUILD_SHA = os.environ.get("BUILD_SHA", "").strip()
 
 # Base material families, checked most-specific first so PETG beats PET and each
@@ -201,6 +204,21 @@ def serialize(f: Filament) -> dict:
     data["level"] = level
     data["low_stock"] = pct <= LOW_STOCK_PCT
     return data
+
+
+def serialize_product(p: Product) -> dict:
+    """Turn a remembered Product row into the JSON the UI uses."""
+    return {
+        "barcode": p.barcode,
+        "material": p.material,
+        "color": p.color,
+        "finish": p.finish,
+        "brand": p.brand,
+        "spool_weight_g": p.spool_weight_g,
+        "nozzle_temp": p.nozzle_temp,
+        "bed_temp": p.bed_temp,
+        "updated_at": p.updated_at,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -364,16 +382,7 @@ def lookup_barcode(code: str, session: Session = Depends(get_session)):
     prod = session.exec(select(Product).where(Product.barcode == code)).first()
     if not prod:
         raise HTTPException(status_code=404, detail="No saved product for that barcode")
-    return {
-        "barcode": prod.barcode,
-        "material": prod.material,
-        "color": prod.color,
-        "finish": prod.finish,
-        "brand": prod.brand,
-        "spool_weight_g": prod.spool_weight_g,
-        "nozzle_temp": prod.nozzle_temp,
-        "bed_temp": prod.bed_temp,
-    }
+    return serialize_product(prod)
 
 
 @app.get("/api/sku/{brand}/{code}")
@@ -423,10 +432,55 @@ def ocr_label(image: UploadFile = File(...)):
 
 @app.get("/api/products")
 def list_products(session: Session = Depends(get_session)):
-    """Every remembered product (barcode -> details). Handy for a future
-    management view or an OpenSpool / NFC integration."""
-    rows = session.exec(select(Product).order_by(Product.brand, Product.material, Product.color)).all()
-    return [r.model_dump() for r in rows]
+    """Every remembered product (barcode -> details), for the Known Products screen."""
+    rows = session.exec(
+        select(Product).order_by(Product.brand, Product.material, Product.color)
+    ).all()
+    return [serialize_product(r) for r in rows]
+
+
+@app.patch("/api/products/{barcode}")
+def update_product(
+    barcode: str,
+    payload: ProductUpdate,
+    session: Session = Depends(get_session),
+):
+    """Correct the remembered details behind a barcode.
+
+    Only future scans are affected; spools already in the catalog keep their own
+    values until they're edited individually.
+    """
+    prod = session.exec(select(Product).where(Product.barcode == barcode)).first()
+    if not prod:
+        raise HTTPException(status_code=404, detail="No saved product for that barcode")
+
+    changes = payload.model_dump(exclude_unset=True)
+    # Material and color are required columns; ignore an accidental null.
+    for key in ("material", "color"):
+        if key in changes and not changes[key]:
+            changes.pop(key)
+    for key, value in changes.items():
+        setattr(prod, key, value)
+    prod.updated_at = datetime.now(timezone.utc)
+    session.add(prod)
+    session.commit()
+    session.refresh(prod)
+    return serialize_product(prod)
+
+
+@app.delete("/api/products/{barcode}")
+def forget_product(barcode: str, session: Session = Depends(get_session)):
+    """Forget what a barcode should pre-fill.
+
+    Spools already in the catalog keep their details; this only removes the
+    reusable product memory, so the next scan starts from a blank form.
+    """
+    prod = session.exec(select(Product).where(Product.barcode == barcode)).first()
+    if not prod:
+        raise HTTPException(status_code=404, detail="No saved product for that barcode")
+    session.delete(prod)
+    session.commit()
+    return {"ok": True}
 
 
 @app.post("/api/filaments")
@@ -459,6 +513,30 @@ def update_filament(
     session.add(f)
     upsert_product(session, f, commit=False)   # keep the remembered product in step
     session.commit()                          # spool + product land together
+    session.refresh(f)
+    return serialize(f)
+
+
+@app.post("/api/filaments/{filament_id}/use")
+def use_filament(
+    filament_id: int,
+    payload: FilamentUse,
+    session: Session = Depends(get_session),
+):
+    """Subtract grams from a spool's remaining amount (the quick "Used" action).
+
+    Clamped to zero, so logging more grams than are left empties the spool
+    instead of producing a negative percentage.
+    """
+    f = session.get(Filament, filament_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="Spool not found")
+    f.remaining_g = clamp_remaining(
+        (f.remaining_g or 0) - payload.grams, f.spool_weight_g
+    )
+    f.updated_at = datetime.now(timezone.utc)
+    session.add(f)
+    session.commit()
     session.refresh(f)
     return serialize(f)
 

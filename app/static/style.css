@@ -143,6 +143,42 @@ tbody tr.low { box-shadow: inset 3px 0 0 var(--danger); }
 
 .empty { color: var(--muted); text-align: center; padding: 32px; }
 
+/* Known products (the editable barcode memory) */
+#products-dialog { width: min(680px, 94vw); }
+.products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.product-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.product-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.product-details { color: var(--muted); font-size: .85rem; }
+.product-barcode { color: var(--muted); font-size: .78rem; }
+.product-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.dialog-hint { color: var(--muted); font-size: .85rem; margin: 0 0 10px; }
+
+/* Quick "used grams" dialog */
+.use-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.use-presets button { padding: 6px 12px; }
+
 .footer {
   margin-top: 32px;
   padding-top: 16px;
@@ -233,4 +269,8 @@ dialog label input, dialog label select, dialog label textarea { width: 100%; ma
   .row-actions { justify-content: flex-end; gap: 16px; padding-top: 10px; }
   .row-actions::before { content: none; }
   .row-actions .link { padding: 6px 4px; }
+
+  /* Known-product rows stack their action buttons under the details. */
+  .product-row { flex-direction: column; align-items: stretch; }
+  .product-actions { align-self: flex-end; }
 }

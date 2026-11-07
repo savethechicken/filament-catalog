@@ -120,12 +120,16 @@ function renderRows(rows) {
       <td class="temps ${temps ? "" : "empty-cell"}" data-label="Temps">${temps || "—"}</td>
       <td class="notes ${r.notes ? "" : "empty-cell"}" data-label="Notes">${r.notes ? escapeHtml(r.notes) : ""}</td>
       <td class="row-actions">
+        <button class="link" data-use="${r.id}">Use…</button>
         <button class="link" data-edit="${r.id}">Edit</button>
         <button class="link danger" data-del="${r.id}">Delete</button>
       </td>`;
     tbody.appendChild(tr);
   }
 
+  tbody.querySelectorAll("[data-use]").forEach((b) =>
+    b.addEventListener("click", () => openUse(rows.find((x) => x.id == b.dataset.use)))
+  );
   tbody.querySelectorAll("[data-edit]").forEach((b) =>
     b.addEventListener("click", () => openEditor(rows.find((x) => x.id == b.dataset.edit)))
   );
@@ -211,6 +215,173 @@ async function removeSpool(id) {
   await loadMeta();
   await loadRows();
 }
+
+// ---- Quick "used grams" --------------------------------------------------
+// Open a small dialog to subtract a number of grams from one spool. The server
+// clamps at zero, so over-logging empties the spool rather than going negative.
+
+const useDialog = $("use-dialog");
+let useTarget = null;
+
+function openUse(spool) {
+  useTarget = spool;
+  $("use-summary").textContent =
+    `${spool.material} · ${spool.color} — ${spool.remaining_g} of ${spool.spool_weight_g} g left`;
+  $("use-grams").value = 50;
+  updateUsePreview();
+  useDialog.showModal();
+  $("use-grams").select();
+}
+
+function updateUsePreview() {
+  if (!useTarget) return;
+  const grams = Math.max(0, Math.floor(Number($("use-grams").value) || 0));
+  const after = Math.max(0, useTarget.remaining_g - grams);
+  const pct = useTarget.spool_weight_g
+    ? Math.round((after / useTarget.spool_weight_g) * 100)
+    : 0;
+  $("use-after").textContent = `After removing ${grams} g: ${after} g left (${pct}%).`;
+}
+
+$("use-grams").addEventListener("input", updateUsePreview);
+
+document.querySelectorAll("[data-use-grams]").forEach((b) =>
+  b.addEventListener("click", () => {
+    $("use-grams").value = b.dataset.useGrams;
+    updateUsePreview();
+    $("use-grams").focus();
+  })
+);
+
+$("use-cancel-btn").addEventListener("click", () => useDialog.close());
+
+$("use-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const grams = Math.floor(Number($("use-grams").value));
+  if (!useTarget || !Number.isFinite(grams) || grams <= 0) return;
+  const res = await fetch(`/api/filaments/${useTarget.id}/use`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ grams }),
+  });
+  if (!res.ok) {
+    alert("Could not update: " + (await res.text()));
+    return;
+  }
+  useDialog.close();
+  await loadRows();
+});
+
+// ---- Known products ------------------------------------------------------
+// The barcode memory behind "remember this spool". Editing here only changes
+// what a future scan pre-fills; existing spools keep their own values.
+
+const productsDialog = $("products-dialog");
+const productEditor = $("product-editor");
+let products = [];
+let productTarget = null;
+
+async function openProducts() {
+  await loadProducts();
+  productsDialog.showModal();
+}
+
+async function loadProducts() {
+  products = await fetch("/api/products").then((r) => r.json());
+  const list = $("products-list");
+  list.innerHTML = "";
+  $("products-empty").hidden = products.length > 0;
+
+  products.forEach((p, index) => {
+    const row = document.createElement("div");
+    row.className = "product-row";
+    const details = [p.finish, p.brand].filter(Boolean).map(escapeHtml).join(" · ");
+    row.innerHTML = `
+      <div class="product-main">
+        <span class="pill">${escapeHtml(p.material)}</span>
+        <strong>${escapeHtml(p.color)}</strong>
+        ${details ? `<span class="product-details">${details}</span>` : ""}
+        <code class="product-barcode">${escapeHtml(p.barcode)}</code>
+      </div>
+      <div class="product-actions">
+        <button class="link" data-edit-product="${index}">Edit</button>
+        <button class="link danger" data-forget-product="${index}">Forget</button>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll("[data-edit-product]").forEach((b) =>
+    b.addEventListener("click", () =>
+      openProductEditor(products[Number(b.dataset.editProduct)])
+    )
+  );
+  list.querySelectorAll("[data-forget-product]").forEach((b) =>
+    b.addEventListener("click", () =>
+      forgetProduct(products[Number(b.dataset.forgetProduct)])
+    )
+  );
+}
+
+function openProductEditor(product) {
+  productTarget = product;
+  $("product-barcode").textContent = `Barcode ${product.barcode}`;
+  $("p-material").value = product.material || "";
+  $("p-color").value = product.color || "";
+  $("p-finish").value = product.finish || "";
+  $("p-brand").value = product.brand || "";
+  $("p-weight").value = product.spool_weight_g != null ? product.spool_weight_g : 1000;
+  $("p-nozzle").value = product.nozzle_temp != null ? product.nozzle_temp : "";
+  $("p-bed").value = product.bed_temp != null ? product.bed_temp : "";
+  productEditor.showModal();
+}
+
+async function forgetProduct(product) {
+  const label = `${product.material} ${product.color} (${product.barcode})`;
+  if (
+    !confirm(
+      `Forget ${label}?\n\nSpools already in the catalog keep their details. ` +
+        `This only changes what a future scan pre-fills.`
+    )
+  )
+    return;
+  const res = await fetch(`/api/products/${encodeURIComponent(product.barcode)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    alert("Could not forget: " + (await res.text()));
+    return;
+  }
+  await loadProducts();
+}
+
+$("products-btn").addEventListener("click", openProducts);
+$("products-close-btn").addEventListener("click", () => productsDialog.close());
+$("product-cancel-btn").addEventListener("click", () => productEditor.close());
+
+$("product-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!productTarget) return;
+  const payload = {
+    material: $("p-material").value.trim(),
+    color: $("p-color").value.trim(),
+    finish: $("p-finish").value.trim() || null,
+    brand: $("p-brand").value.trim() || null,
+    spool_weight_g: Number($("p-weight").value) || 1000,
+    nozzle_temp: $("p-nozzle").value ? Number($("p-nozzle").value) : null,
+    bed_temp: $("p-bed").value ? Number($("p-bed").value) : null,
+  };
+  const res = await fetch(`/api/products/${encodeURIComponent(productTarget.barcode)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    alert("Could not save: " + (await res.text()));
+    return;
+  }
+  productEditor.close();
+  await loadProducts();
+});
 
 // ---- Barcode scanning ----------------------------------------------------
 // Take a photo of the spool's barcode, decode it in the browser (html5-qrcode),

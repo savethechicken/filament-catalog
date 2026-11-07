@@ -61,6 +61,12 @@ class FilamentUpdate(SQLModel):
     notes: Optional[str] = None
 
 
+class FilamentUse(SQLModel):
+    """How many grams to subtract from a spool (the quick "Used" action)."""
+
+    grams: int = Field(gt=0)
+
+
 class Product(SQLModel, table=True):
     """The reusable facts behind a barcode, kept separately from spools.
 
@@ -80,3 +86,15 @@ class Product(SQLModel, table=True):
     nozzle_temp: Optional[int] = None
     bed_temp: Optional[int] = None
     updated_at: datetime = Field(default_factory=_now)
+
+
+class ProductUpdate(SQLModel):
+    """What the Known Products editor sends. Every field optional."""
+
+    material: Optional[str] = None
+    color: Optional[str] = None
+    finish: Optional[str] = None
+    brand: Optional[str] = None
+    spool_weight_g: Optional[int] = Field(default=None, gt=0)
+    nozzle_temp: Optional[int] = None
+    bed_temp: Optional[int] = None

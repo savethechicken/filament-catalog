@@ -37,6 +37,17 @@ correctly. The same download is available directly at
 `GET /api/export.csv` (it accepts the same `q`, `family`, `brand`, `finish`, and
 `low_stock` query parameters as `/api/filaments`).
 
+## Log what you used
+
+Each row has a **Use…** action. Pick a preset amount (10/25/50/100/250 g) or
+type the grams you used, see the resulting total, and hit **Remove grams**. The
+spool's remaining amount drops immediately and is clamped at zero, so logging
+more than is left empties the spool rather than producing a negative number.
+This is the quick alternative to opening the edit dialog and retyping the total.
+
+The underlying endpoint is `POST /api/filaments/{id}/use` with a JSON body like
+`{"grams": 50}`.
+
 ## Scan a barcode
 
 Tap **📷 Scan**, photograph the spool's barcode, and the app decodes it right in
@@ -56,8 +67,23 @@ needed on your home network.
 **The barcode memory outlives the spool.** Product details (material, color,
 brand, weight, temps) are saved in a separate `products` table, so when a roll
 is used up and you delete it from the list, the barcode is *not* forgotten —
-scan it on your next refill and everything re-imports. `GET /api/products` lists
-everything remembered (a natural hook for a future OpenSpool / NFC tie-in).
+scan it on your next refill and everything re-imports.
+
+## Known products
+
+Tap **📚 Products** in the header to see every remembered barcode. Each row
+shows the material, color, finish/brand, and barcode, with two actions:
+
+- **Edit** — correct the details a future scan should pre-fill. Existing spools
+  keep their own values; only the barcode memory changes.
+- **Forget** — remove the remembered product entirely, so the next scan starts
+  from a blank form. Spools already in the catalog are untouched.
+
+This is the fix for a bad barcode memory (for example, a color the upfront
+lookup guessed wrong). The same operations are available as
+`PATCH /api/products/{barcode}` and `DELETE /api/products/{barcode}`, and
+`GET /api/products` lists everything remembered — the natural hook for a future
+OpenSpool / NFC tie-in.
 
 ## Look up by maker code
 
